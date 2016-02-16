@@ -9,4 +9,4 @@ To compile the code, key in the following:
 
 To execute the code, key in:
 
-  ./a.out
+   ./a.out

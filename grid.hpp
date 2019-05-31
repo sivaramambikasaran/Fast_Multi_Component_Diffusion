@@ -11,8 +11,10 @@
 #include<set>
 #include <Eigen/Dense>
 
-class grid {
+class grid 
+{
 	friend class domain;
+
 public:
 	//	X-location of the grid
 	double x;
@@ -29,10 +31,10 @@ public:
 	//	Gradient of the mole fraction of the species, where moleFractionGradient(i) denotes the gradient of the mole fraction of species 'i' at the grid
 	Eigen::MatrixXd moleFractionGradient;
 
-	//	Mass fraction of the species, where moleFraction(i) denotes the mole fraction of species 'i' at the grid
+	//	Mass fraction of the species, where massFraction(i) denotes the mass fraction of species 'i' at the grid
 	Eigen::VectorXd massFraction;
 
-	//	Gradient of the mass fraction of the species, where moleFractionGradient(i) denotes the gradient of the mole fraction of species 'i' at the grid
+	//	Gradient of the mass fraction of the species, where massFractionGradient(i) denotes the gradient of the mass fraction of species 'i' at the grid
 	Eigen::VectorXd massFractionGradient;
 
 	//	Temperature at the grid
@@ -117,19 +119,22 @@ public:
 	grid(double x, int nSpecies);
 };
 
-grid::grid(double x, int nSpecies) {
+grid::grid(double x, int nSpecies) 
+{
 	this->x			=	x;
 	this->nSpecies	=	nSpecies;
 }
 
-double grid::compute_Inverse_Diffusion_Coefficient_Kinetic_Theory(int i, int j, const std::vector<species>& mySpecies) {
+double grid::compute_Inverse_Diffusion_Coefficient_Kinetic_Theory(int i, int j, const std::vector<species>& mySpecies) 
+{
 	//	1/D	=	((d_i+d_j)/(2d_{max}))^2*sqrt(2*m_i*m_j/(m_i+m_j)/m_{max})
 	double diaSum	=	(mySpecies[i].diameter+mySpecies[j].diameter);
 	double temp		=	diaSum*diaSum*sqrt(2*mySpecies[i].mass*mySpecies[j].mass/(mySpecies[i].mass+mySpecies[j].mass));
 	return	temp;
 }
 
-double grid::compute_Collision_Integral(int i, int j, const std::vector<species>& mySpecies) {
+double grid::compute_Collision_Integral(int i, int j, const std::vector<species>& mySpecies) 
+{
 	static const double m[]	=	{6.8728271691,9.4122316321,7.7442359037,0.23424661229,1.45337701568,5.2269794238,9.7108519575,0.46539437353,0.00041908394781};
 	// double T	=	kB*temperature/sqrt(mySpecies[i].energy*mySpecies[j].energy);
 	double T	=	temperature*sqrt(mySpecies[i].energy*mySpecies[j].energy);
@@ -142,12 +147,14 @@ double grid::compute_Inverse_Diffusion_Coefficient_Collision(int i, int j, const
 	return compute_Inverse_Diffusion_Coefficient_Kinetic_Theory(i,j,mySpecies)*compute_Collision_Integral(i,j,mySpecies);
 }
 
-double grid::compute_Inverse_Diffusion_Coefficient(int i, int j, const std::vector<species>& mySpecies) {
+double grid::compute_Inverse_Diffusion_Coefficient(int i, int j, const std::vector<species>& mySpecies) 
+{
 	return compute_Inverse_Diffusion_Coefficient_Kinetic_Theory(i,j,mySpecies);
 	// return compute_Inverse_Diffusion_Coefficient_Collision(i,j,mySpecies);
 }
 
-Eigen::VectorXd grid::get_Row(int i, int startCol, int colSize, const std::vector<species>& mySpecies) {
+Eigen::VectorXd grid::get_Row(int i, int startCol, int colSize, const std::vector<species>& mySpecies) 
+{
 	Eigen::VectorXd row(colSize);
 	// std::cout << i << "\t" << startCol << "\t" << colSize << "\n";
 	#pragma omp parallel for
@@ -157,7 +164,8 @@ Eigen::VectorXd grid::get_Row(int i, int startCol, int colSize, const std::vecto
 	return row;
 }
 
-Eigen::VectorXd grid::get_Col(int i, int startRow, int rowSize, const std::vector<species>& mySpecies) {
+Eigen::VectorXd grid::get_Col(int i, int startRow, int rowSize, const std::vector<species>& mySpecies) 
+{
 	Eigen::VectorXd col(rowSize);
 
 	#pragma omp parallel for
@@ -167,7 +175,8 @@ Eigen::VectorXd grid::get_Col(int i, int startRow, int rowSize, const std::vecto
 	return col;
 }
 
-Eigen::MatrixXd grid::get_Matrix(int startRow, int startCol, int nRows, int nCols, const std::vector<species>& mySpecies) {
+Eigen::MatrixXd grid::get_Matrix(int startRow, int startCol, int nRows, int nCols, const std::vector<species>& mySpecies) 
+{
 	Eigen::MatrixXd invD(nRows, nCols);
 
 	#pragma omp parallel for
@@ -179,7 +188,8 @@ Eigen::MatrixXd grid::get_Matrix(int startRow, int startCol, int nRows, int nCol
 	return invD;
 }
 
-unsigned grid::max_Abs_Vector(const Eigen::VectorXd& v, const std::set<int>& allowed_Indices, double& max) {
+unsigned grid::max_Abs_Vector(const Eigen::VectorXd& v, const std::set<int>& allowed_Indices, double& max) 
+{
 	std::set<int>::iterator it	=	allowed_Indices.begin();
 	unsigned index	=	*allowed_Indices.begin();
 	max				=	v(index);
@@ -193,7 +203,8 @@ unsigned grid::max_Abs_Vector(const Eigen::VectorXd& v, const std::set<int>& all
 	return index;
 }
 
-void grid::compressed_Inverse_Diffusion_Coefficients(const std::vector<species>& mySpecies, double tolerance) {
+void grid::compressed_Inverse_Diffusion_Coefficients(const std::vector<species>& mySpecies, double tolerance) 
+{
 	int start_Row	=	0;
 	int start_Col	=	0;
 	int n_Rows		=	nSpecies;
@@ -346,21 +357,25 @@ void grid::compressed_Inverse_Diffusion_Coefficients(const std::vector<species>&
 	return;
 }
 
-void grid::compute_RHS() {
-	rhs	=	massFractionGradient + (massFraction-moleFraction)*pressureGradient/pressure;
+void grid::compute_RHS() 
+{
+	rhs	=	-moleFractionGradient + (massFraction-moleFraction)*pressureGradient/pressure;
 	rhs	=	rhs*temperature/pressure*sqrt(temperature);
 }
 
-void grid::obtain_Inverse_Diffusion_Coefficients(const std::vector<species>& mySpecies) {
+void grid::obtain_Inverse_Diffusion_Coefficients(const std::vector<species>& mySpecies) 
+{
 	D	=	get_Matrix(0, 0, nSpecies, nSpecies, mySpecies);
 }
 
-void grid::compute_Diagonal() {
+void grid::compute_Diagonal() 
+{
 	diagonal	=	U*(V.transpose()*moleFraction);
 	invdiagonal	=	diagonal.cwiseInverse();
 }
 
-void grid::compute_Species_Velocity(const std::vector<species>& mySpecies, const Eigen::VectorXd& W, double tolerance) {
+void grid::compute_Species_Velocity(const std::vector<species>& mySpecies, const Eigen::VectorXd& W, double tolerance) 
+{
 	this->speciesVelocity	=	Eigen::VectorXd::Zero(nSpecies);
 	// std::cout << "\nComputing the compressed_Inverse_Diffusion_Coefficients...\n";
 	compressed_Inverse_Diffusion_Coefficients(mySpecies, tolerance);
@@ -373,7 +388,6 @@ void grid::compute_Species_Velocity(const std::vector<species>& mySpecies, const
 	Utilde						=	invdiagonal.asDiagonal()*Utilde;
 	Eigen::MatrixXd temp		=	Eigen::MatrixXd::Identity(rank+1,rank+1) - Vtilde.transpose()*Utilde;
 	speciesVelocity				=	tempVelocity + Utilde*temp.fullPivLu().solve(Vtilde.transpose()*tempVelocity);
-	speciesVelocity				=	speciesVelocity;
 	// obtain_Inverse_Diffusion_Coefficients(mySpecies);
 	// Eigen::MatrixXd Error	=	D-U*V.transpose();
 	// std::cout << "Error is: " << Error.norm()/D.norm() << "\n";
@@ -386,17 +400,20 @@ void grid::compute_Species_Velocity(const std::vector<species>& mySpecies, const
 	// std::cout << "\nComputed the right hand side.\n";
 }
 
-void grid::compute_Exact_Species_Velocity(const std::vector<species>& mySpecies, const Eigen::VectorXd& W) {
+void grid::compute_Exact_Species_Velocity(const std::vector<species>& mySpecies, const Eigen::VectorXd& W) 
+{
 	obtain_Inverse_Diffusion_Coefficients(mySpecies);
 	Eigen::VectorXd temp	=	D*moleFraction;
 	Eigen::MatrixXd M		=	moleFraction.asDiagonal()*D + Eigen::VectorXd::Random(nSpecies)*W.transpose();
-	for (int j=0; j<nSpecies; ++j) {
+	for (int j=0; j<nSpecies; ++j) 
+	{
 		M(j,j)-=temp(j);
 	}
 	exactSpeciesVelocity	=	M.fullPivLu().solve(rhs);
 }
 
-void grid::compute_Species_Velocity_Iteratively(const std::vector<species>& mySpecies, const Eigen::VectorXd& W, double tolerance) {
+void grid::compute_Species_Velocity_Iteratively(const std::vector<species>& mySpecies, const Eigen::VectorXd& W, double tolerance) 
+{
 	// obtain_Inverse_Diffusion_Coefficients(mySpecies);
 	Eigen::VectorXd temp	=	D*moleFraction;
 	Eigen::MatrixXd M		=	moleFraction.asDiagonal()*D + Eigen::VectorXd::Random(nSpecies)*W.transpose();
@@ -412,4 +429,5 @@ void grid::compute_Species_Velocity_Iteratively(const std::vector<species>& mySp
 	this->iterativeerror	=	cg.error();
 	this->nIterations		=	cg.iterations();
 }
+
 #endif /*__grid_hpp__*/

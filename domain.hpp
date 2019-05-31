@@ -2,7 +2,7 @@
 #define __domain_hpp__
 
 const double R			=	8.3144598;
-const double Avagadro	=	6.022140857e23;
+const double Avagadro   =	6.022140857e23;
 const double kB			=	R/Avagadro;
 const double PI			=	3.141592653589793238;
 
@@ -12,7 +12,8 @@ const double PI			=	3.141592653589793238;
 #include<Eigen/IterativeLinearSolvers>
 #include"grid.hpp"
 
-class domain{
+class domain
+{
 public:
 	//	Constructor
 	domain();
@@ -69,13 +70,11 @@ public:
 	void compute_Iterative_Error();
 };
 
-domain::domain() {
-};
+domain::domain() {};
+domain::~domain() {};
 
-domain::~domain() {
-};
-
-void domain::generate_Grid(int nGrid, double left, double right) {
+void domain::generate_Grid(int nGrid, double left, double right) 
+{
 	this->nGrid		=	nGrid;
 	assert(nGrid>1);
 	this->dx		=	(right-left)/nGrid;
@@ -93,7 +92,8 @@ void domain::generate_Grid(int nGrid, double left, double right) {
 	// std::cout << "\nGenerated the temperature profile.\n";
 }
 
-void domain::read_Species(std::string fileName) {
+void domain::read_Species(std::string fileName) 
+{
 	std::ifstream myfile;
 	myfile.open(fileName.c_str(), std::ios::in);
 	std::string tempString;
@@ -101,7 +101,8 @@ void domain::read_Species(std::string fileName) {
 
 	std::getline(myfile, tempString);
 
-	while(!myfile.eof()) {
+	while(!myfile.eof()) 
+	{
 		species	newSpecies;
 		myfile >> tempString;
 		newSpecies.name		=	tempString;
@@ -147,7 +148,8 @@ void domain::read_Species(std::string fileName) {
 }
 
 //	Generates species profile
-void domain::generate_Species_Profile(int nNodes) {
+void domain::generate_Species_Profile(int nNodes) 
+{
 	Eigen::MatrixXd T	=	Eigen::MatrixXd(nGrid, nNodes);
 	T.col(0)=	Eigen::VectorXd::Ones(nGrid);
 

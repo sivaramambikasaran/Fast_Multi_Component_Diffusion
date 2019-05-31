@@ -359,7 +359,7 @@ void grid::compressed_Inverse_Diffusion_Coefficients(const std::vector<species>&
 
 void grid::compute_RHS() 
 {
-	rhs	=	-moleFractionGradient + (massFraction-moleFraction)*pressureGradient/pressure;
+	rhs	=	moleFractionGradient - (massFraction-moleFraction)*pressureGradient/pressure;
 	rhs	=	rhs*temperature/pressure*sqrt(temperature);
 }
 

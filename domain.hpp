@@ -1,10 +1,6 @@
 #ifndef __domain_hpp__
 #define __domain_hpp__
 
-const double R			=	8.3144598;
-const double Avagadro   =	6.022140857e23;
-const double kB			=	R/Avagadro;
-const double PI			=	3.141592653589793238;
 
 #include<cassert>
 #include<vector>

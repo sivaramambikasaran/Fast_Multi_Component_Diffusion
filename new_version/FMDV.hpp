@@ -18,8 +18,7 @@ class FMDV
 {
 // These methods are used internally
 // Not needed for a user to access:
-public:
-// private:
+private:
 	// Number of species
 	int N_species;
     // Rank of inverse diffusion matrix:
@@ -67,6 +66,8 @@ public:
 	Eigen::MatrixXd L, R;
     // Diagonal matrix and its inverse:
     Eigen::VectorXd diagonal, invdiagonal;
+    // Random vector S to use in the computation:
+    Eigen::VectorXd S;
 
     // Used to obtain the inverse diffusion coefficient matrix entries:
     double getMatrixEntry(int i, int j);
@@ -85,7 +86,7 @@ public:
     void computeDiagonal();
 	void computeRHS();
 
-// public:
+public:
 
 	// Constructor:
     // Initializing using number of grid points and the number of species:
@@ -112,7 +113,8 @@ public:
     Eigen::VectorXd computeSpeciesVelocities(double tolerance);
 
     // Provided as a means to compare against the naive computation:
-    Eigen::MatrixXd getMatrix();
+    Eigen::MatrixXd getInverseDiffusionCoefficientMatrix();
+    Eigen::VectorXd getRandomVector();
     Eigen::VectorXd getRHS();
 };
 
@@ -129,6 +131,7 @@ FMDV::FMDV(int N_species)
     mass_fraction          = Eigen::VectorXd::Zero(N_species);
     body_forces            = Eigen::VectorXd::Zero(N_species);
     rhs                    = Eigen::VectorXd::Zero(N_species);
+    S                      = Eigen::VectorXd::Random(N_species);
 
     return;
 }
@@ -275,7 +278,7 @@ Eigen::VectorXd FMDV::getCol(const int k)
     return col;
 }
 
-Eigen::MatrixXd FMDV::getMatrix() 
+Eigen::MatrixXd FMDV::getInverseDiffusionCoefficientMatrix() 
 {
     Eigen::MatrixXd mat(N_species, N_species);
     
@@ -594,9 +597,10 @@ void FMDV::compressInverseDiffusionCoefficients(double tolerance)
     // then return the trivial full-rank decomposition
     if(computed_rank >= N_species - 1) 
     {
-        L = this->getMatrix();
+        L = this->getInverseDiffusionCoefficientMatrix();
         R = Eigen::MatrixXd::Identity(N_species, N_species);
         computed_rank = N_species;
+        this->rank = computed_rank;
     }
     
     // This is when ACA has succeeded:
@@ -626,6 +630,7 @@ void FMDV::computeAlpha()
     double total_mass = max_mass * mole_fraction.dot(mass);
     // α  = W * ∇T / (ρ * T) Σ D
     alpha = total_mass * temperature_gradient / (density * temperature) * thermal_diffusivities.sum();
+    return;
 }
 
 // This computes the RHS for the expression we want to solve:
@@ -638,13 +643,24 @@ void FMDV::computeRHS()
     double f_tilde = mass_fraction.dot(body_forces);
     rhs	= - (mole_fraction_gradient + (mass_fraction - mole_fraction) * pressure_gradient / pressure).array()
           + (density / pressure * mass_fraction.array() * (body_forces.array() - f_tilde).array()).array();
+    rhs = rhs - alpha * S;
+    return;
+}
+
+Eigen::VectorXd FMDV::getRandomVector()
+{
+    return S;
+}
+
+Eigen::VectorXd FMDV::getRHS()
+{
+    return rhs;
 }
 
 // This method solves the equation:
 // (diag(VX) - diag(X)V - S * Wt)z = (b - alpha * s)
 Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
 {
-    Eigen::VectorXd S                  = Eigen::VectorXd::Random(N_species);
     // Step #1 of Algorithm 1: expresses V = L * Rt
     // This uses ACA:
     this->compressInverseDiffusionCoefficients(tolerance);
@@ -661,7 +677,7 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
 	Q << R, mass;
     // This computes the RHS of the equation (b - alpha * s) and stores it in the variable rhs:
 	this->computeRHS();
-    // Step #4 of Algorithm: computing B_tilde = inv(D) * (b - αS)
+    // Step #4 of Algorithm: computing b_tilde = inv(D) * (b - αS)
 	Eigen::VectorXd b_tilde = invdiagonal.cwiseProduct(rhs);
     // Step #5 of Algorithm: computing P_tilde = inv(D) * P
 	Eigen::MatrixXd P_tilde = invdiagonal.asDiagonal() * P;

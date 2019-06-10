@@ -92,15 +92,23 @@ public:
     // Initializing using number of grid points and the number of species:
 	FMDV(int N_species);
 
-    // Setters:
     // Following variables are doubles:
+    // Setters:
     void setPressure(double pressure);
     void setPressureGradient(double pressure_gradient);
     void setDensity(double density);
     void setTemperature(double temperature);
     void setTemperatureGradient(double temperature_gradient);
+    // Getters:
+    double getPressure();
+    double getPressureGradient();
+    double getDensity();
+    double getTemperature();
+    double getTemperatureGradient();
+
 
     // The length of these vector would be N_species
+    // Setters:
     void setMolecularWeights(Eigen::VectorXd molecular_weights);
     void setDiameters(Eigen::VectorXd diameters);
     void setThermalDiffusivities(Eigen::VectorXd thermal_diffusivities);
@@ -108,6 +116,14 @@ public:
     void setMoleFraction(Eigen::VectorXd mole_fractions);
     void setMoleFractionGradient(Eigen::VectorXd mole_fractions);
     void setBodyForces(Eigen::VectorXd body_forces);
+    // Getters:
+    Eigen::VectorXd getMolecularWeights();
+    Eigen::VectorXd getDiameters();
+    Eigen::VectorXd getThermalDiffusivities();
+    Eigen::VectorXd getCollisionEnergies();
+    Eigen::VectorXd getMoleFraction();
+    Eigen::VectorXd getMoleFractionGradient();
+    Eigen::VectorXd getBodyForces();
 
     // This is the main method that the user utilizes to get the species velocities:
     Eigen::VectorXd computeSpeciesVelocities(double tolerance);
@@ -166,6 +182,31 @@ void FMDV::setTemperatureGradient(double temperature_gradient)
     return;
 }
 
+double FMDV::getPressure()
+{
+    return this->pressure;
+}
+
+double FMDV::getPressureGradient()
+{
+    return this->pressure_gradient;
+}
+
+double FMDV::getDensity()
+{
+    return this->density;
+}
+
+double FMDV::getTemperature()
+{
+    return this->temperature;
+}
+
+double FMDV::getTemperatureGradient()
+{
+    return this->temperature_gradient;
+}
+
 // Used to set the molecular weights for all the species involved:
 // The input to this function should be a vector of size N_species
 void FMDV::setMolecularWeights(Eigen::VectorXd molecular_weights)
@@ -222,6 +263,48 @@ void FMDV::setBodyForces(Eigen::VectorXd body_forces)
 {
     this->body_forces = body_forces;
     return;
+}
+
+// Used to get the molecular weights for all the species involved:
+Eigen::VectorXd FMDV::getMolecularWeights()
+{
+    return this->max_mass * this->mass;
+}
+
+// Used to get the diameters for all the species involved:
+Eigen::VectorXd FMDV::getDiameters()
+{
+    return this->max_dia * this->diameters;
+}
+
+// Used to get the thermal diffusivities for all the species involved:
+Eigen::VectorXd FMDV::getThermalDiffusivities()
+{
+    return this->thermal_diffusivities;
+}
+
+// Used to get the collision energies for all the species involved:
+Eigen::VectorXd FMDV::getCollisionEnergies()
+{
+    return this->collision_energies;
+}
+
+// Used to get the mole fractions for all the species involved:
+Eigen::VectorXd FMDV::getMoleFraction()
+{
+    return this->mole_fraction;
+}
+
+// Used to get the mole fraction gradients for all the species involved:
+Eigen::VectorXd FMDV::getMoleFractionGradient()
+{
+    return this->mole_fraction_gradient;
+}
+
+// Used to get the body forces for all the species involved:
+Eigen::VectorXd FMDV::getBodyForces()
+{
+    return this->body_forces;
 }
 
 double FMDV::getMatrixEntry(int i, int j)
@@ -703,7 +786,7 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
         }
     }
 
-    return species_velocities;
+    return z;
 }
 
 #endif // __FMDV_HPP__

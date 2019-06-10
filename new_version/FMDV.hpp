@@ -41,6 +41,8 @@ private:
     double max_dia;
     // Scalar α which is used in the computation:
     double alpha;
+    // Total mass of all species:
+    double total_mass;
 
     // The following variables are vectors of size N_species:
     // Molecular weights:
@@ -122,6 +124,7 @@ public:
     Eigen::VectorXd getThermalDiffusivities();
     Eigen::VectorXd getCollisionEnergies();
     Eigen::VectorXd getMoleFraction();
+    Eigen::VectorXd getMassFraction();
     Eigen::VectorXd getMoleFractionGradient();
     Eigen::VectorXd getBodyForces();
 
@@ -245,7 +248,11 @@ void FMDV::setCollisionEnergies(Eigen::VectorXd collision_energies)
 // The input to this function should be a vector of size N_species
 void FMDV::setMoleFraction(Eigen::VectorXd mole_fraction)
 {
-    this->mole_fraction = mole_fraction;
+    this->mole_fraction  = mole_fraction;
+    this->mass_fraction  = mole_fraction.cwiseProduct(mass);
+    this->total_mass     = max_mass * mass_fraction.sum();
+    this->mass_fraction /= this->mass_fraction.sum();
+
     return;
 }
 
@@ -293,6 +300,12 @@ Eigen::VectorXd FMDV::getCollisionEnergies()
 Eigen::VectorXd FMDV::getMoleFraction()
 {
     return this->mole_fraction;
+}
+
+// Used to get the mass fractions for all the species involved:
+Eigen::VectorXd FMDV::getMassFraction()
+{
+    return this->mass_fraction;
 }
 
 // Used to get the mole fraction gradients for all the species involved:
@@ -710,9 +723,9 @@ void FMDV::computeDiagonal()
 
 void FMDV::computeAlpha()
 {
-    double total_mass = max_mass * mole_fraction.dot(mass);
     // α  = W * ∇T / (ρ * T) Σ D
     alpha = total_mass * temperature_gradient / (density * temperature) * thermal_diffusivities.sum();
+    std::cout << "The value of alpha is:" << alpha << std::endl;
     return;
 }
 
@@ -775,9 +788,11 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
     Eigen::VectorXd species_velocities(N_species);
     for(int i = 0; i < N_species; i++)
     {
+        // If mole-fraction is zero, doesn't it mean that species doesn't exist and that velocity is zero:
+        // TODO: Why is it assigned a finite value in the paper?
         if(mole_fraction(i) == 0)
         {
-            species_velocities(i) = -prefactor * thermal_diffusivities(i) / mass_fraction(i);
+            species_velocities(i) = 0;
         }
 
         else
@@ -786,7 +801,7 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
         }
     }
 
-    return z;
+    return species_velocities;
 }
 
 #endif // __FMDV_HPP__

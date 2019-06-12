@@ -133,13 +133,13 @@ void domain::read_Species(std::string fileName)
 		}
 	}
 
-	W	=	Eigen::VectorXd(nSpecies);
+	W	=	Eigen::VectorXd::Random(nSpecies).cwiseAbs();
 
 	#pragma omp parallel for
 	for (int j=0; j<nSpecies; ++j) {
-		mySpecies[j].mass		=	mySpecies[j].mass/massMax;
-		mySpecies[j].diameter	=	0.5*mySpecies[j].diameter/diaMax;
-		W(j)					=	mySpecies[j].mass;
+		mySpecies[j].mass		=	W(j); //mySpecies[j].mass/massMax;
+		mySpecies[j].diameter	=	(double)(rand()) / RAND_MAX;
+		// W(j)					=	mySpecies[j].mass;
 	}
 }
 
@@ -243,7 +243,7 @@ void domain::generate_Temp_Pressure_Profile(int nNodes) {
 
 //	Computes the species velocity at every grid point
 void domain::compute_Species_Velocity(double tolerance) {
-	static const double preFactor	=	2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
+	static const double preFactor	=	1;//2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
 	// std::cout << "Prefactor is: " << preFactor << "\n";
 	#pragma omp parallel for
 	for (int j=0; j<nGrid; ++j) {
@@ -256,7 +256,7 @@ void domain::compute_Species_Velocity(double tolerance) {
 
 //	Computes the exact species velocity at every grid point
 void domain::compute_Exact_Species_Velocity() {
-	static const double preFactor	=	2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
+	static const double preFactor	=	1;//2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
 	// std::cout << "Prefactor is: " << preFactor << "\n";
 	#pragma omp parallel for
 	for (int j=0; j<nGrid; ++j) {
@@ -277,7 +277,7 @@ void domain::compute_Error() {
 
 //	Solve the system iteratively using CG
 void domain::compute_Species_Velocity_Iteratively(double tolerance, double& iterativeerror) {
-	static const double preFactor	=	2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
+	static const double preFactor	=	1;//2.0/(3.0*Avagadro*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
 	// std::cout << "Prefactor is: " << preFactor << "\n";
 	#pragma omp parallel for
 	for (int j=0; j<nGrid; ++j) {

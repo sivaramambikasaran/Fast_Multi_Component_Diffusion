@@ -1,9 +1,9 @@
 CC         =g++
-CFLAGS	   =-c -Ofast -ffast-math -ffinite-math-only
+CFLAGS	   =-c -Wall -Ofast -fopenmp -ffast-math -ffinite-math-only
 LDFLAGS	   =-Ofast -fopenmp
-SOURCES	   =./fast_diffusion.cpp
+SOURCES	   =./example/basic_example.cpp
 OBJECTS	   =$(SOURCES:.cpp=.o)
-EXECUTABLE =./fast_diffusion
+EXECUTABLE =./exec/example
 
 all: $(SOURCES) $(EXECUTABLE)
 
@@ -14,4 +14,4 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) -I $(EIGEN_PATH) $(CFLAGS) $< -o $@
 
 clean:
-	rm fast_diffusion *.o
+	rm ./exec/example ./example/*.o

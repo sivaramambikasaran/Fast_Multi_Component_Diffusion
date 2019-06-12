@@ -10,6 +10,7 @@
 
 int main(int argc, char* argv[]) 
 {
+	srand(time(NULL));
 	// The following array stores the name of the files from which data is to be read:
 	std::string filename[] = {"data/table_224.txt","data/table_448.txt","data/table_896.txt","data/table_1792.txt","data/table_3585.txt","data/table_7171.txt"};
 	// Used for timing:
@@ -24,7 +25,7 @@ int main(int argc, char* argv[])
 		std::cout << "----------------------------------------\n";
 		std::cout << "Number of species is: " << myDomain.nSpecies << "\n";
 
-		int nGrid			=	10;
+		int nGrid			=	2;
 		double left			=	-1.0;
 		double right		=	1.0;
 		double tolerance	=	1e-14;

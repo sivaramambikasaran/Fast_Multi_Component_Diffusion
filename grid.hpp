@@ -1,10 +1,10 @@
 #ifndef __grid_hpp__
 #define __grid_hpp__
 
-// const double R			=	8.3144598;
-// const double Avagadro	=	6.022140857e23;
-// const double kB			=	R/Avagadro;
-// const double PI			=	3.141592653589793238;
+const double R			=	8.3144598;
+const double Avagadro	=	6.022140857e23;
+const double kB			=	R/Avagadro;
+const double PI			=	3.141592653589793238;
 
 #include<cassert>
 #include<vector>
@@ -388,6 +388,9 @@ void grid::compute_Species_Velocity(const std::vector<species>& mySpecies, const
 	Utilde						=	invdiagonal.asDiagonal()*Utilde;
 	Eigen::MatrixXd temp		=	Eigen::MatrixXd::Identity(rank+1,rank+1) - Vtilde.transpose()*Utilde;
 	speciesVelocity				=	tempVelocity + Utilde*temp.fullPivLu().solve(Vtilde.transpose()*tempVelocity);
+
+	std::cout << "SUM OF:" << speciesVelocity.cwiseProduct(W) << std::endl;
+
 	// obtain_Inverse_Diffusion_Coefficients(mySpecies);
 	// Eigen::MatrixXd Error	=	D-U*V.transpose();
 	// std::cout << "Error is: " << Error.norm()/D.norm() << "\n";
@@ -404,12 +407,15 @@ void grid::compute_Exact_Species_Velocity(const std::vector<species>& mySpecies,
 {
 	obtain_Inverse_Diffusion_Coefficients(mySpecies);
 	Eigen::VectorXd temp	=	D*moleFraction;
-	Eigen::MatrixXd M		=	moleFraction.asDiagonal()*D + Eigen::VectorXd::Random(nSpecies)*W.transpose();
+	Eigen::MatrixXd M		=	moleFraction.asDiagonal()*D + 0.0123 * Eigen::VectorXd::Random(nSpecies)*W.transpose();
 	for (int j=0; j<nSpecies; ++j) 
 	{
 		M(j,j)-=temp(j);
 	}
 	exactSpeciesVelocity	=	M.fullPivLu().solve(rhs);
+
+	std::cout << "SUM OF:" << exactSpeciesVelocity.cwiseProduct(W) << std::endl;
+
 }
 
 void grid::compute_Species_Velocity_Iteratively(const std::vector<species>& mySpecies, const Eigen::VectorXd& W, double tolerance) 
@@ -426,6 +432,9 @@ void grid::compute_Species_Velocity_Iteratively(const std::vector<species>& mySp
 	cg.setTolerance(100*tolerance);
 	cg.compute(M);
 	iterativespeciesVelocity	=	cg.solve(rhs);
+
+	std::cout << "SUM OF:" << iterativespeciesVelocity.cwiseProduct(W) << std::endl;
+
 	this->iterativeerror	=	cg.error();
 	this->nIterations		=	cg.iterations();
 }

@@ -6,73 +6,32 @@
 #include <set>
 #include "Eigen/Dense"
 
-// Definition of various physical constants:
-const double R        =	8.3144598;
-const double AVAGADRO =	6.022140857e23;
-const double kB       =	R / AVAGADRO;
-const double PI       =	3.141592653589793238;
-
 // An instance of this class can be used to solve
 // for all the diffusion velocities at a single grid point
 class FMDV
 {
 // These methods are used internally
 // Not needed for a user to access:
-private:
+// private:
+public:
 	// Number of species
 	int N_species;
     // Rank of inverse diffusion matrix:
     int rank;
-    
-    // The following variables are doubles:
-    // Density at the grid point:
-    double density;
-    // Temperature at the grid point:
-	double temperature;
-    // Temperature gradient at the grid point:
-	double temperature_gradient;
-    // Pressure at the grid point:
-    double pressure;
-    // Pressure gradient at the grid point:
-    double pressure_gradient;
-    // Stores the maximum mass amongst all species:
-    double max_mass;
-    // Stores the maximum diameter amongst all species:
-    double max_dia;
+
     // Scalar α which is used in the computation:
     double alpha;
-    // Total mass of all species:
-    double total_mass;
-
-    // The following variables are vectors of size N_species:
-    // Molecular weights:
-    Eigen::VectorXd mass;
-    // Diameters:
-    Eigen::VectorXd diameters;
-    // Thermal diffusivities:
-    Eigen::VectorXd thermal_diffusivities;
-    // Collision energies:
-    Eigen::VectorXd collision_energies;
-    // Mole fraction:
-    Eigen::VectorXd mole_fraction;
-    // Mole fraction gradient:
-    Eigen::VectorXd mole_fraction_gradient;
-    // Mass fraction:
-    Eigen::VectorXd mass_fraction;
-    // Body forces:
-    Eigen::VectorXd body_forces;
-
+    // Average mass of all species:
+    double average_molecular_mass;
+    
     // RHS that needs to be solved for:
     Eigen::VectorXd rhs;
 	// Low-rank form of the inverse diffusion coefficient matrix
 	Eigen::MatrixXd L, R;
-    // Diagonal matrix and its inverse:
+    // Diagonal matrix diag(LR^T X) and its inverse:
     Eigen::VectorXd diagonal, invdiagonal;
     // Random vector S to use in the computation:
     Eigen::VectorXd S;
-
-    // Used to obtain the inverse diffusion coefficient matrix entries:
-    double getMatrixEntry(int i, int j);
 
     // The following methods are used to get the low rank decomposition:
     Eigen::VectorXd getRow(const int j);
@@ -88,45 +47,47 @@ private:
     void computeDiagonal();
 	void computeRHS();
 
-public:
+// public:
+
+    // The following variables are doubles:
+    // Density at the grid point:
+    double density;
+    // Temperature at the grid point:
+	double temperature;
+    // Temperature gradient at the grid point:
+	double temperature_gradient;
+    // Pressure at the grid point:
+    double pressure;
+    // Pressure gradient at the grid point:
+    double pressure_gradient;
+
+    // The following variables are vectors of size N_species:
+    // Molecular weights:
+    Eigen::VectorXd molecular_mass;
+    // Diameters:
+    Eigen::VectorXd diameters;
+    // Thermal diffusivities:
+    Eigen::VectorXd thermal_diffusivities;
+    // Collision energies:
+    Eigen::VectorXd collision_energies;
+    // Mole fraction:
+    Eigen::VectorXd mole_fraction;
+    // Mole fraction gradient:
+    Eigen::VectorXd mole_fraction_gradient;
+    // Mass fraction:
+    Eigen::VectorXd mass_fraction;
+    // Body forces:
+    Eigen::VectorXd body_forces;
 
 	// Constructor:
     // Initializing using number of grid points and the number of species:
 	FMDV(int N_species);
 
-    // Following variables are doubles:
-    // Setters:
-    void setPressure(double pressure);
-    void setPressureGradient(double pressure_gradient);
-    void setDensity(double density);
-    void setTemperature(double temperature);
-    void setTemperatureGradient(double temperature_gradient);
-    // Getters:
-    double getPressure();
-    double getPressureGradient();
-    double getDensity();
-    double getTemperature();
-    double getTemperatureGradient();
-
-
-    // The length of these vector would be N_species
-    // Setters:
-    void setMolecularWeights(Eigen::VectorXd molecular_weights);
-    void setDiameters(Eigen::VectorXd diameters);
-    void setThermalDiffusivities(Eigen::VectorXd thermal_diffusivities);
-    void setCollisionEnergies(Eigen::VectorXd collision_energies);
-    void setMoleFraction(Eigen::VectorXd mole_fractions);
-    void setMoleFractionGradient(Eigen::VectorXd mole_fractions);
-    void setBodyForces(Eigen::VectorXd body_forces);
-    // Getters:
-    Eigen::VectorXd getMolecularWeights();
-    Eigen::VectorXd getDiameters();
-    Eigen::VectorXd getThermalDiffusivities();
-    Eigen::VectorXd getCollisionEnergies();
-    Eigen::VectorXd getMoleFraction();
-    Eigen::VectorXd getMassFraction();
-    Eigen::VectorXd getMoleFractionGradient();
-    Eigen::VectorXd getBodyForces();
+    // Method that defines the matrix entries:
+    virtual double getInverseDiffusionCoefficient(int i, int j)
+    {
+        return 0;
+    }
 
     // This is the main method that the user utilizes to get the species velocities:
     Eigen::VectorXd computeSpeciesVelocities(double tolerance);
@@ -140,8 +101,10 @@ public:
 // Used to set the number of species considered in the computation:
 FMDV::FMDV(int N_species)
 {
-    this->N_species        = N_species;
-    mass                   = Eigen::VectorXd::Zero(N_species);
+    srand(time(NULL));
+    this->N_species = N_species;
+
+    molecular_mass         = Eigen::VectorXd::Zero(N_species);
     diameters              = Eigen::VectorXd::Zero(N_species);
     thermal_diffusivities  = Eigen::VectorXd::Zero(N_species);
     collision_energies     = Eigen::VectorXd::Zero(N_species);
@@ -150,204 +113,9 @@ FMDV::FMDV(int N_species)
     mass_fraction          = Eigen::VectorXd::Zero(N_species);
     body_forces            = Eigen::VectorXd::Zero(N_species);
     rhs                    = Eigen::VectorXd::Zero(N_species);
-    S                      = Eigen::VectorXd::Random(N_species);
+    S                      = Eigen::VectorXd::Random(N_species); // NOTE: DO NOT SET TO ZERO. THIS CAN LEAD TO FAILURE!
 
     return;
-}
-
-void FMDV::setPressure(double pressure)
-{
-    this->pressure = pressure;
-    return;
-}
-
-void FMDV::setPressureGradient(double pressure_gradient)
-{
-    this->pressure_gradient = pressure_gradient;
-    return;
-}
-
-void FMDV::setDensity(double density)
-{
-    this->density = density;
-    return;
-}
-
-void FMDV::setTemperature(double temperature)
-{
-    this->temperature = temperature;
-    return;
-}
-
-void FMDV::setTemperatureGradient(double temperature_gradient)
-{
-    this->temperature_gradient = temperature_gradient;
-    return;
-}
-
-double FMDV::getPressure()
-{
-    return this->pressure;
-}
-
-double FMDV::getPressureGradient()
-{
-    return this->pressure_gradient;
-}
-
-double FMDV::getDensity()
-{
-    return this->density;
-}
-
-double FMDV::getTemperature()
-{
-    return this->temperature;
-}
-
-double FMDV::getTemperatureGradient()
-{
-    return this->temperature_gradient;
-}
-
-// Used to set the molecular weights for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setMolecularWeights(Eigen::VectorXd molecular_weights)
-{
-    this->max_mass = molecular_weights.maxCoeff();
-    this->mass     = molecular_weights / max_mass;
-    return;
-}
-
-// Used to set the diameters for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setDiameters(Eigen::VectorXd diameters)
-{
-    this->max_dia   = diameters.maxCoeff();
-    this->diameters = diameters / max_dia;
-    return;
-}
-
-// Used to set the thermal diffusivities for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setThermalDiffusivities(Eigen::VectorXd thermal_diffusivities)
-{
-    this->thermal_diffusivities = thermal_diffusivities;
-    return;
-}
-
-// Used to set the collision energies for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setCollisionEnergies(Eigen::VectorXd collision_energies)
-{
-    this->collision_energies = collision_energies;
-    return;
-}
-
-// Used to set the mole fractions for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setMoleFraction(Eigen::VectorXd mole_fraction)
-{
-    this->mole_fraction  = mole_fraction;
-    this->mass_fraction  = mole_fraction.cwiseProduct(mass);
-    this->total_mass     = max_mass * mass_fraction.sum();
-    this->mass_fraction /= this->mass_fraction.sum();
-
-    return;
-}
-
-// Used to set the mole fraction gradients for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setMoleFractionGradient(Eigen::VectorXd mole_fraction_gradient)
-{
-    this->mole_fraction_gradient = mole_fraction_gradient;
-    return;
-}
-
-// Used to set the body forces for all the species involved:
-// The input to this function should be a vector of size N_species
-void FMDV::setBodyForces(Eigen::VectorXd body_forces)
-{
-    this->body_forces = body_forces;
-    return;
-}
-
-// Used to get the molecular weights for all the species involved:
-Eigen::VectorXd FMDV::getMolecularWeights()
-{
-    return this->max_mass * this->mass;
-}
-
-// Used to get the diameters for all the species involved:
-Eigen::VectorXd FMDV::getDiameters()
-{
-    return this->max_dia * this->diameters;
-}
-
-// Used to get the thermal diffusivities for all the species involved:
-Eigen::VectorXd FMDV::getThermalDiffusivities()
-{
-    return this->thermal_diffusivities;
-}
-
-// Used to get the collision energies for all the species involved:
-Eigen::VectorXd FMDV::getCollisionEnergies()
-{
-    return this->collision_energies;
-}
-
-// Used to get the mole fractions for all the species involved:
-Eigen::VectorXd FMDV::getMoleFraction()
-{
-    return this->mole_fraction;
-}
-
-// Used to get the mass fractions for all the species involved:
-Eigen::VectorXd FMDV::getMassFraction()
-{
-    return this->mass_fraction;
-}
-
-// Used to get the mole fraction gradients for all the species involved:
-Eigen::VectorXd FMDV::getMoleFractionGradient()
-{
-    return this->mole_fraction_gradient;
-}
-
-// Used to get the body forces for all the species involved:
-Eigen::VectorXd FMDV::getBodyForces()
-{
-    return this->body_forces;
-}
-
-double FMDV::getMatrixEntry(int i, int j)
-{
-	// 1/D = ((d_i+d_j)/(2d_{max}))^2 * sqrt(2*m_i*m_j/(m_i+m_j)/m_{max})
-    // TODO: Currently the constants have not been included. Need to do that
-	double dia_sum              = diameters(i) + diameters(j);
-	double elastic_matrix_entry = (temperature * sqrt(temperature) / pressure) * 
-                                  dia_sum * dia_sum * 
-                                  sqrt(2 * mass(i) * mass(j) / (mass(i) + mass(j)));
-
-    // This segment computes collision integral based on collision energies:
-    // TODO: Find out on what this is based
-    if(collision_energies(i) != 0 && collision_energies(j) != 0)
-    {
-        static const double m[] = {6.8728271691,  9.4122316321,  7.7442359037,
-                                   0.23424661229, 1.45337701568, 5.2269794238,
-                                   9.7108519575,  0.46539437353, 0.00041908394781};
-        
-        double T  = temperature * sqrt(collision_energies(i) * collision_energies(j));
-        double Nr = m[0] + T * (m[1] + T * (m[2] + T *  m[3]));
-        double Dr = m[4] + T * (m[5] + T * (m[6] + T * (m[7] + T * m[8])));
-    
-    	return (Nr/Dr) * elastic_matrix_entry;
-    }
-
-    else
-    {
-        return elastic_matrix_entry;
-    }
 }
 
 Eigen::VectorXd FMDV::getRow(const int j) 
@@ -356,7 +124,7 @@ Eigen::VectorXd FMDV::getRow(const int j)
     #pragma omp parallel for
     for(int k = 0; k < N_species; k++) 
     {   
-        row(k) = this->getMatrixEntry(j,  k);
+        row(k) = this->getInverseDiffusionCoefficient(j,  k);
     }
 
     return row;
@@ -368,7 +136,7 @@ Eigen::VectorXd FMDV::getCol(const int k)
     #pragma omp parallel for
     for (int j = 0; j < N_species; j++) 
     {
-        col(j) = this->getMatrixEntry(j, k);
+        col(j) = this->getInverseDiffusionCoefficient(j, k);
     }
 
     return col;
@@ -384,7 +152,7 @@ Eigen::MatrixXd FMDV::getInverseDiffusionCoefficientMatrix()
         #pragma omp parallel for
         for (int k=0; k < N_species; ++k) 
         {
-            mat(j,k) = this->getMatrixEntry(j, k);
+            mat(j,k) = this->getInverseDiffusionCoefficient(j, k);
         }
     }
 
@@ -713,19 +481,24 @@ void FMDV::compressInverseDiffusionCoefficients(double tolerance)
             R.col(j) = v[j];
         }
     }
+
+    std::cout << "Rank:" << this->rank << std::endl;
 }
 
 void FMDV::computeDiagonal()
 {
     diagonal    = L * (R.transpose() * mole_fraction);
 	invdiagonal = diagonal.cwiseInverse();
+    return;
 }
 
 void FMDV::computeAlpha()
 {
+    average_molecular_mass = (molecular_mass.cwiseProduct(mole_fraction)).sum();
     // α  = W * ∇T / (ρ * T) Σ D
-    alpha = total_mass * temperature_gradient / (density * temperature) * thermal_diffusivities.sum();
-    std::cout << "The value of alpha is:" << alpha << std::endl;
+    alpha = (average_molecular_mass * temperature_gradient / (density * temperature)) * thermal_diffusivities.sum();
+
+    std::cout << "The computed value of alpha is:" << alpha << std::endl;
     return;
 }
 
@@ -770,38 +543,54 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
     // Step #4 of Algorithm 1: computing α
     this->computeAlpha();
     // Q = [ R, W ] ∈ R^{N_species × (r+1)}
-	Q << R, mass;
+	Q << R, molecular_mass;
+
+    Eigen::MatrixXd M1 = Eigen::MatrixXd(diagonal.asDiagonal()) - P * Q.transpose();
+    Eigen::MatrixXd V  = getInverseDiffusionCoefficientMatrix();
+    Eigen::MatrixXd M2 = Eigen::MatrixXd((V * mole_fraction).asDiagonal()) - mole_fraction.asDiagonal() * V - Eigen::VectorXd::Random(N_species) * molecular_mass.transpose();
+
     // This computes the RHS of the equation (b - alpha * s) and stores it in the variable rhs:
 	this->computeRHS();
     // Step #4 of Algorithm: computing b_tilde = inv(D) * (b - αS)
 	Eigen::VectorXd b_tilde = invdiagonal.cwiseProduct(rhs);
-    // Step #5 of Algorithm: computing P_tilde = inv(D) * P
+    // // Step #5 of Algorithm: computing P_tilde = inv(D) * P
 	Eigen::MatrixXd P_tilde = invdiagonal.asDiagonal() * P;
-    // Step #6 of Algorithm: computing b_bar = Q^T * b_tilde
+    // // Step #6 of Algorithm: computing b_bar = Q^T * b_tilde
 	Eigen::VectorXd b_bar = Q.transpose() * b_tilde;
-    // Step #7 of Algorithm: computing P_bar = Q^T * P_tilde
+    // // Step #7 of Algorithm: computing P_bar = Q^T * P_tilde
 	Eigen::MatrixXd P_bar = Q.transpose() * P_tilde;
-    // Step #8 of Algorithm: computing z = b_tilde + P_tilde * inv(I - P_bar) * b_bar
+    // // Step #8 of Algorithm: computing z = b_tilde + P_tilde * inv(I - P_bar) * b_bar
 	Eigen::VectorXd z = b_tilde + P_tilde * (Eigen::MatrixXd::Identity(rank + 1, rank + 1) - P_bar).fullPivLu().solve(b_bar);
-    // Step #9 of Algorithm: computing v
-    double prefactor = temperature_gradient / (density * temperature);
-    Eigen::VectorXd species_velocities(N_species);
-    for(int i = 0; i < N_species; i++)
-    {
-        // If mole-fraction is zero, doesn't it mean that species doesn't exist and that velocity is zero:
-        // TODO: Why is it assigned a finite value in the paper?
-        if(mole_fraction(i) == 0)
-        {
-            species_velocities(i) = 0;
-        }
 
-        else
-        {
-            species_velocities(i) = z(i) / mole_fraction(i) - prefactor * thermal_diffusivities(i) / mass_fraction(i);
-        }
-    }
+	Eigen::VectorXd z1 = M1.fullPivLu().solve(rhs);
+	Eigen::VectorXd z2 = M2.fullPivLu().solve(rhs);
 
-    return species_velocities;
+    std::cout << "Max z1:" << (z-z1).norm() / z.norm() << std::endl;
+    std::cout << "Max z2:" << (z-z2).norm() / z.norm() << std::endl;
+
+    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
+    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
+    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
+
+    // // Step #9 of Algorithm: computing v
+    // double prefactor = temperature_gradient / (density * temperature);
+    // Eigen::VectorXd species_velocities(N_species);
+    // for(int i = 0; i < N_species; i++)
+    // {
+    //     // If mole-fraction is zero, doesn't it mean that species doesn't exist and that velocity is zero:
+    //     // TODO: Why is it assigned a finite value in the paper?
+    //     if(mole_fraction(i) == 0)
+    //     {
+    //         species_velocities(i) = 0;
+    //     }
+
+    //     else
+    //     {
+    //         species_velocities(i) = z(i) / mole_fraction(i) - prefactor * thermal_diffusivities(i) / mass_fraction(i);
+    //     }
+    // }
+
+    return z;
 }
 
 #endif // __FMDV_HPP__

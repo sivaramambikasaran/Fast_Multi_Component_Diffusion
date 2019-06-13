@@ -5,7 +5,7 @@
 #include <set>
 #include "Eigen/Dense"
 
-class grid_point_point
+class grid_point
 {
     friend class domain;
 

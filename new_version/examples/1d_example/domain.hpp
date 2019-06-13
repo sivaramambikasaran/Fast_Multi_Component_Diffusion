@@ -14,36 +14,40 @@ class domain
 {
 	// Number of grid points in the domain
 	int N_grid;
-	// Vector used to store grid content:
-	std::vector<grid_point> grid;
-
-public:
-	// Constructor
-	domain()
-	{
-
-	};
-	// Destructor
-	~domain(){};
+	// Number of species in the domain
+	int N_species;
 
 	// Grid size
 	double dx;
-	// Generates the grid:
-	void generateGrid(double start, double end, int N_grid);
+	// Maximum diameter and Maximum Mass
+	double diaMax, massMax;
 
-	// Species
+	// Vector used to store grid content:
+	std::vector<grid_point> grid;
+	// Species that are present:
 	std::vector<species> species_present;
 
-	// Minimum, Maximum diameter and Minimum and Maximum Mass
-	double diaMin, diaMax, massMin, massMax;
+public:
 
-	// Number of species in the domain
-	int nSpecies;
+	// Constructor
+	domain(int N_grid)
+	{	
+		this->N_grid = N_grid;
+		this->dx     = 2 / N_grid;
+	};
 
-	// Generate species profile
-	void generateSpeciesProfile(int N_nodes);
+	// Destructor
+	~domain(){};
+
+	// This function is used to get the information about the species in the domain:
+	void readSpecies(std::string file_name); 
+	// Generates the grid:
+	void generateGrid(int N_grid);
+	// Generate species profile: generates profile for mass 
+	// and mole fraction and their gradients in addition to body forces 
+	void generateSpeciesProfile();
 	// Generate temperature and pressure profile
-	void generateTempPressureProfile(int N_nodes);
+	void generateTempPressureProfile();
 
 	// Compute species velocity
 	void computeSpeciesVelocity(double tolerance);
@@ -53,166 +57,146 @@ public:
 	void computeSpeciesVelocityIteratively(double tolerance);
 
 	// Compute error
-	void compute_Error();
+	void computeError();
 	// Compute iterative error
-	void compute_Iterative_Error();
+	void computeIterative_Error();
 };
 
-void domain::generate_Grid(int N_grid, double left, double right) 
+void domain::generateGrid(int N_grid) 
 {
-	this->N_grid		=	N_grid;
-	assert(N_grid>1);
-	this->dx		=	(right-left)/N_grid;
 
-	for (int j=0; j<N_grid; ++j) {
-		grid myGrid(left+(j+0.5)*dx, nSpecies);
-		grid.push_back(myGrid);
-	}
-	// std::cout << "\nGenerating the species profile...\n";
-	generateSpeciesProfile(20);
-	// std::cout << "\nGenerated the species profile.\n";
-
-	// std::cout << "\nGenerating the temperature profile...\n";
-	generate_Temp_Pressure_Profile(20);
-	// std::cout << "\nGenerated the temperature profile.\n";
-}
-
-void domain::read_Species(std::string fileName) 
-{
-	std::ifstream myfile;
-	myfile.open(fileName.c_str(), std::ios::in);
-	std::string tempString;
-	double tempDouble;
-
-	std::getline(myfile, tempString);
-
-	while(!myfile.eof()) 
-	{
-		species	newSpecies;
-		myfile >> tempString;
-		newSpecies.name		=	tempString;
-		myfile >> tempDouble;
-		newSpecies.mass		=	tempDouble;
-		myfile >> tempDouble;
-		newSpecies.diameter	=	tempDouble;
-		myfile >> tempDouble;
-		newSpecies.energy	=	tempDouble;
-		mySpecies.push_back(newSpecies);
-	}
-	myfile.close();
-
-	this->nSpecies	=	mySpecies.size();
-	this->diaMin	=	mySpecies[0].diameter;
-	this->diaMax	=	mySpecies[0].diameter;
-	this->massMin	=	mySpecies[0].mass;
-	this->massMax	=	mySpecies[0].mass;
-
-	for (int j=1; j<nSpecies; ++j) {
-		if (mySpecies[j].mass < massMin) {
-			massMin	=	mySpecies[j].mass;
-		}
-		if (mySpecies[j].mass > massMax) {
-			massMax	=	mySpecies[j].mass;
-		}
-		if (mySpecies[j].diameter < diaMin) {
-			diaMin	=	mySpecies[j].diameter;
-		}
-		if (mySpecies[j].diameter > diaMax) {
-			diaMax	=	mySpecies[j].diameter;
-		}
-	}
-
-	W	=	Eigen::VectorXd::Random(nSpecies).cwiseAbs();
-
-	#pragma omp parallel for
-	for (int j=0; j<nSpecies; ++j) {
-		mySpecies[j].mass		=	W(j); //mySpecies[j].mass/massMax;
-		mySpecies[j].diameter	=	(double)(rand()) / RAND_MAX;
-		// W(j)					=	mySpecies[j].mass;
-	}
-}
-
-// Generates species profile
-void domain::generateSpeciesProfile(int N_nodes) 
-{
-	Eigen::MatrixXd T = Eigen::MatrixXd(N_grid, N_nodes);
-	T.col(0)          = Eigen::VectorXd::Ones(N_grid);
-
-	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		T(j,1) = grid[j].x;
+		grid_point new_grid_point(left+(j+0.5)*dx, N_species);
+		grid.push_back(new_grid_point);
 	}
 
+	// Getting the mole, mass fraction and gradient profiles:
+	generateSpeciesProfile();
+	// Getting the temperature, pressure profiles and their gradients:
+	generateTemperaturePressureProfile();
+}
+
+// We will be using this method to read the data from our data files:
+void domain::readSpecies(std::string file_name) 
+{
+    std::ifstream myfile;
+    myfile.open(file_name.c_str(), std::ios::in);
+    std::string temp_string;
+    double temp_double;
+
+    std::getline(myfile, temp_string);
+
+    while(!myfile.eof()) 
+    {
+        species new_species;
+        myfile >> temp_string;
+        new_species.name = temp_string;
+        myfile >> temp_double;
+        new_species.mass = temp_double;
+        myfile >> temp_double;
+        new_species.diameter = temp_double;
+        myfile >> temp_double;
+        new_species.energy = temp_double;
+        // Our data files contain data for the above attributes
+        // However, they do not contain information about the
+        // thermal diffusivities body forces. For the sake of
+        // this example, we assign them using random values:
+        new_species.thermal_diffusivity = double(rand()) / RAND_MAX;
+        species_present.push_back(new_species);
+    }
+    
+    myfile.close();
+
+    this->N_species = species_present.size();
+    this->dia_max   = species_present[0].diameter;
+    this->mass_max  = species_present[0].mass;
+
+    // Finding the maximum mass and diameter:
+    for(int j = 1; j < N_species; ++j) 
+    {
+        if (species_present[j].mass > mass_max) 
+        {
+            mass_max = species_present[j].mass;
+        }
+        if (species_present[j].diameter > dia_max) 
+        {
+            dia_max = species_present[j].diameter;
+        }
+    }
+
+	// Normalizing the quantities such that the maximum of the mass and diameter is 1:
+    #pragma omp parallel for
+    for(int j = 0; j < N_species; ++j) 
+    {
+        species_present[j].mass     = species_present[j].mass/mass_max;
+        species_present[j].diameter = species_present[j].diameter/dia_max;
+    }
+}
+
+// Generates a random species profile:
+void domain::generateSpeciesProfile() 
+{
+	// Obtaining mole fraction matrix of size N_species by N_grid
+	Eigen::MatrixXd mole_fraction =	Eigen::MatrixXd::Ones(N_species, N_grid) + Eigen::MatrixXd::Random(N_species, N_grid);
+	Eigen::VectorXd sum           = mole_fraction.colwise().sum();
+
 	#pragma omp parallel for
-	for (int j=0; j<N_nodes-2; ++j) 
+	for (int j = 0; j < N_grid; ++j) 
 	{
-		for (int k=0; k<N_grid; ++k) 
-		{
-			T(k,j+2)	=	2*grid[k].x*T(k,j+1)-T(k,j);
-		}
+		mole_fraction.col(j) = mole_fraction.col(j) / sum(j);
 	}
-	T+=Eigen::MatrixXd::Ones(N_grid,N_nodes);
-	Eigen::MatrixXd moleFraction	=	(0.5*T*(Eigen::MatrixXd::Ones(N_nodes,nSpecies)+Eigen::MatrixXd::Random(N_nodes,nSpecies))).transpose();
-	// moleFraction	-	Matrix of species mole fraction at each grid point; Size is nSpecies by N_grid
-	Eigen::VectorXd sum	=	moleFraction.colwise().sum();
 
+	// Taking central difference assuming periodic BCs:
+	Eigen::MatrixXd mole_fraction_gradient                  = Eigen::MatrixXd::Zero(N_species, N_grid);
+	mole_fraction_gradient.block(0, 1, N_species, N_grid-2) = mole_fraction.block(0, 2, N_species, N_grid-2) - mole_fraction.block(0, 0, N_species, N_grid-2);
 	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		moleFraction.col(j)	=	moleFraction.col(j)/sum(j);
+	for (int j = 0; j < N_species; ++j) 
+	{
+		mole_fraction_gradient(j, 0)          = mole_fraction(j, 1) - mole_fraction(j, N_grid - 1);
+		mole_fraction_gradient(j, N_grid - 1) = mole_fraction(j, 0) - mole_fraction(j, N_grid - 2);
 	}
 
-	Eigen::MatrixXd moleFractionGradient	=	Eigen::MatrixXd::Zero(nSpecies, N_grid);
-	moleFractionGradient.block(0,1,nSpecies,N_grid-2)	=	moleFraction.block(0,2,nSpecies,N_grid-2)-moleFraction.block(0,0,nSpecies,N_grid-2);
-	moleFractionGradient	=	0.5/dx*moleFractionGradient;
+	mole_fraction_gradient = 0.5 / dx * mole_fraction_gradient;
 
-	// Obtaining mass fractions and mass fraction gradients of size nSpecies by N_grid
-	Eigen::MatrixXd massFraction		=	Eigen::MatrixXd(nSpecies, N_grid);
-	Eigen::MatrixXd massFractionGradient=	Eigen::MatrixXd(nSpecies, N_grid);
-
+	// Obtaining mass fraction matrix of size N_species by N_grid
+	Eigen::MatrixXd mass_fraction = Eigen::MatrixXd(N_species, N_grid);
 	#pragma omp parallel for
-	for (int j=0; j<nSpecies; ++j) {
-		massFraction.row(j)	=	mySpecies[j].mass*moleFraction.row(j);
+	for(int j = 0; j < N_species; ++j) 
+	{
+		mass_fraction.row(j) = species_present[j].mass * mole_fraction.row(j);
 	}
-	sum	=	massFraction.colwise().sum();
 	
+	sum	= mass_fraction.colwise().sum();
 	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		massFraction.col(j)	=	massFraction.col(j)/sum(j);
+	for(int j = 0; j < N_grid; ++j) 
+	{
+		mass_fraction.col(j) = mass_fraction.col(j) / sum(j);
 	}
 
+	// Declaring matrix for body forces:
+	Eigen::MatrixXd body_forces = Eigen::MatrixXd::Random(N_species, N_grid);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].moleFraction			=	moleFraction.col(j);
-		grid[j].moleFractionGradient	=	moleFractionGradient.col(j);
-		grid[j].massFraction			=	massFraction.col(j);
-		grid[j].massFractionGradient	=	massFractionGradient.col(j);
-		grid[j].mass					=	0.0;
-		for (int k=0; k<nSpecies; ++k) {
-			grid[j].mass+=grid[j].moleFraction(k)*mySpecies[k].mass;
-		}
+		grid[j].mole_fraction          = mole_fraction.col(j);
+		grid[j].mole_fraction_gradient = mole_fraction_gradient.col(j);
+		grid[j].mass_fraction          = mass_fraction.col(j);
+		grid[j].body_forces            = body_forces.col(j);
 	}
 }
 
-// Generates temperature and pressure profile
-void domain::generate_Temp_Pressure_Profile(int N_nodes) {
-	Eigen::MatrixXd T	=	Eigen::MatrixXd(N_grid, N_nodes);
-	T.col(0)=	Eigen::VectorXd::Ones(N_grid);
-	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		T(j,1)	=	grid[j].x;
-	}
-	#pragma omp parallel for
-	for (int j=0; j<N_nodes-2; ++j) {
-		for (int k=0; k<N_grid; ++k) {
-			T(k,j+2)	=	2*grid[k].x*T(k,j+1)-T(k,j);
-		}
-	}
+// Generates temperature and pressure profiles
+void domain::generateTemperaturePressureProfile() 
+{
 	double tempMean				=	2000;
 	double tempScale			=	500;
 	Eigen::VectorXd temp		=	Eigen::VectorXd::Ones(N_nodes)+Eigen::VectorXd::Random(N_nodes);
 	Eigen::VectorXd temperature	=	tempMean*Eigen::VectorXd::Ones(N_grid) + tempScale*(T*temp/temp.sum());
+
+	Eigen::VectorXd pressureGradient	=	Eigen::VectorXd::Zero(N_grid);
+	pressureGradient.segment(1,N_grid-2)	=	pressure.segment(2,N_grid-2)-pressure.segment(0,N_grid-2);
+	pressureGradient	=	(0.5/dx)*pressureGradient;
 
 	double pressureMean			=	101325;
 	Eigen::VectorXd pressure	=	pressureMean*Eigen::VectorXd::Ones(N_grid);
@@ -222,25 +206,23 @@ void domain::generate_Temp_Pressure_Profile(int N_nodes) {
 	pressureGradient	=	(0.5/dx)*pressureGradient;
 
 	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
+	for (int j=0; j<N_grid; ++j) 
+	{
 		grid[j].temperature		=	temperature(j);
 		grid[j].pressure			=	pressure(j);
 		grid[j].pressureGradient	=	pressureGradient(j);
+		grid[j].pressureGradient	=	pressureGradient(j);
 	}
-
 }
 
 // Computes the species velocity at every grid point
 void domain::compute_Species_Velocity(double tolerance) {
-	static const double preFactor	=	1;//2.0/(3.0*AVAGADRO*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
-	// std::cout << "Prefactor is: " << preFactor << "\n";
+	static const double preFactor = 2.0/(3.0*AVAGADRO*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Species_Velocity(mySpecies, W, tolerance);
+		grid[j].compute_Species_Velocity(species_present, W, tolerance);
 		grid[j].speciesVelocity	=	preFactor*grid[j].speciesVelocity;
 	}
-	// std::cout << "Species velocity is: " << grid[N_grid/2].speciesVelocity.transpose() << "\n\n";
-	// std::cout << "Molefraction gradient is: " << grid[N_grid-2].moleFractionGradient.transpose() << "\n\n";
 }
 
 // Computes the exact species velocity at every grid point
@@ -249,19 +231,9 @@ void domain::compute_Exact_Species_Velocity() {
 	// std::cout << "Prefactor is: " << preFactor << "\n";
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Exact_Species_Velocity(mySpecies, W);
+		grid[j].compute_Exact_Species_Velocity(species_present, W);
 		grid[j].exactSpeciesVelocity	=	preFactor*grid[j].exactSpeciesVelocity;
 	}
-}
-
-// Computes the error
-void domain::compute_Error() {
-	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		grid[j].error	=	(grid[j].exactSpeciesVelocity-grid[j].speciesVelocity).norm()/(grid[j].exactSpeciesVelocity.norm());
-		// std::cout << grid[j].error << "\n";
-	}
-	std::cout << "Rank of the inverse diffusion matrix is: " << grid[N_grid/2].rank << "\n";
 }
 
 // Solve the system iteratively using CG
@@ -270,11 +242,21 @@ void domain::compute_Species_Velocity_Iteratively(double tolerance, double& iter
 	// std::cout << "Prefactor is: " << preFactor << "\n";
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Species_Velocity_Iteratively(mySpecies, W, tolerance);
+		grid[j].compute_Species_Velocity_Iteratively(species_present, W, tolerance);
 		grid[j].iterativespeciesVelocity	=	preFactor*grid[j].iterativespeciesVelocity;
 	}
 	std::cout << "Number of iterations for the iterative solver is: " << grid[N_grid/2].nIterations << "\n";
 	iterativeerror	=	grid[N_grid/2].iterativeerror;
+}
+
+// Computes the error
+void domain::computeError() 
+{
+	#pragma omp parallel for
+	for (int j=0; j<N_grid; ++j) 
+	{
+		grid[j].error	=	(grid[j].exactSpeciesVelocity-grid[j].speciesVelocity).norm()/(grid[j].exactSpeciesVelocity.norm());
+	}
 }
 
 #endif /*__domain_hpp__*/

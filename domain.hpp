@@ -288,5 +288,4 @@ void domain::compute_Species_Velocity_Iteratively(double tolerance, double& iter
 	iterativeerror	=	grids[nGrid/2].iterativeerror;
 }
 
-
 #endif /*__domain_hpp__*/

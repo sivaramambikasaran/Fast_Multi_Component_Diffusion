@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
 		std::cout << "----------------------------------------\n";
 		std::cout << "Number of species is: " << myDomain.nSpecies << "\n";
 
-		int nGrid			=	2;
+		int nGrid			=	10;
 		double left			=	-1.0;
 		double right		=	1.0;
 		double tolerance	=	1e-14;

@@ -481,8 +481,6 @@ void FMDV::compressInverseDiffusionCoefficients(double tolerance)
             R.col(j) = v[j];
         }
     }
-
-    std::cout << "Rank:" << this->rank << std::endl;
 }
 
 void FMDV::computeDiagonal()
@@ -497,8 +495,6 @@ void FMDV::computeAlpha()
     average_molecular_mass = (molecular_mass.cwiseProduct(mole_fraction)).sum();
     // α  = W * ∇T / (ρ * T) Σ D
     alpha = (average_molecular_mass * temperature_gradient / (density * temperature)) * thermal_diffusivities.sum();
-
-    std::cout << "The computed value of alpha is:" << alpha << std::endl;
     return;
 }
 
@@ -544,11 +540,6 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
     this->computeAlpha();
     // Q = [ R, W ] ∈ R^{N_species × (r+1)}
 	Q << R, molecular_mass;
-
-    Eigen::MatrixXd M1 = Eigen::MatrixXd(diagonal.asDiagonal()) - P * Q.transpose();
-    Eigen::MatrixXd V  = getInverseDiffusionCoefficientMatrix();
-    Eigen::MatrixXd M2 = Eigen::MatrixXd((V * mole_fraction).asDiagonal()) - mole_fraction.asDiagonal() * V - Eigen::VectorXd::Random(N_species) * molecular_mass.transpose();
-
     // This computes the RHS of the equation (b - alpha * s) and stores it in the variable rhs:
 	this->computeRHS();
     // Step #4 of Algorithm: computing b_tilde = inv(D) * (b - αS)
@@ -561,36 +552,25 @@ Eigen::VectorXd FMDV::computeSpeciesVelocities(double tolerance)
 	Eigen::MatrixXd P_bar = Q.transpose() * P_tilde;
     // // Step #8 of Algorithm: computing z = b_tilde + P_tilde * inv(I - P_bar) * b_bar
 	Eigen::VectorXd z = b_tilde + P_tilde * (Eigen::MatrixXd::Identity(rank + 1, rank + 1) - P_bar).fullPivLu().solve(b_bar);
+    // Step #9 of Algorithm: computing v
+    double prefactor = temperature_gradient / (density * temperature);
+    Eigen::VectorXd species_velocities(N_species);
+    for(int i = 0; i < N_species; i++)
+    {
+        // If mole-fraction is zero, doesn't it mean that species doesn't exist and that velocity is zero:
+        // TODO: Why is it assigned a finite value in the paper?
+        if(mole_fraction(i) == 0)
+        {
+            species_velocities(i) = 0;
+        }
 
-	Eigen::VectorXd z1 = M1.fullPivLu().solve(rhs);
-	Eigen::VectorXd z2 = M2.fullPivLu().solve(rhs);
+        else
+        {
+            species_velocities(i) = z(i) / mole_fraction(i) - prefactor * thermal_diffusivities(i) / mass_fraction(i);
+        }
+    }
 
-    std::cout << "Max z1:" << (z-z1).norm() / z.norm() << std::endl;
-    std::cout << "Max z2:" << (z-z2).norm() / z.norm() << std::endl;
-
-    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
-    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
-    std::cout << molecular_mass.cwiseProduct(z).sum() << std::endl;
-
-    // // Step #9 of Algorithm: computing v
-    // double prefactor = temperature_gradient / (density * temperature);
-    // Eigen::VectorXd species_velocities(N_species);
-    // for(int i = 0; i < N_species; i++)
-    // {
-    //     // If mole-fraction is zero, doesn't it mean that species doesn't exist and that velocity is zero:
-    //     // TODO: Why is it assigned a finite value in the paper?
-    //     if(mole_fraction(i) == 0)
-    //     {
-    //         species_velocities(i) = 0;
-    //     }
-
-    //     else
-    //     {
-    //         species_velocities(i) = z(i) / mole_fraction(i) - prefactor * thermal_diffusivities(i) / mass_fraction(i);
-    //     }
-    // }
-
-    return z;
+    return species_velocities;
 }
 
 #endif // __FMDV_HPP__

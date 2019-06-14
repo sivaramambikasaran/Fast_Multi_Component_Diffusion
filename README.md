@@ -1,6 +1,6 @@
 # FMDV
 
- can be used to solve for diffusion velocities in a fast manner. The methods that are utilized in this library are detailed in [this](https://www.sciencedirect.com/science/article/pii/S1540748916300554) article
+FMDV can be used to solve for diffusion velocities in a fast manner. The methods that are utilized in this library are detailed in [this](https://www.sciencedirect.com/science/article/pii/S1540748916300554) article
 
 ## Dependencies:
 

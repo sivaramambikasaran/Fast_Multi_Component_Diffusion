@@ -2,6 +2,7 @@
 #define __domain_hpp__
 
 #include <vector>
+#include "grid_point.hpp"
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
 
@@ -20,12 +21,23 @@ class domain
 	// Grid size
 	double dx;
 	// Maximum diameter and Maximum Mass
-	double diaMax, massMax;
+	double dia_max, mass_max;
 
-	// Vector used to store grid content:
+	// Vector used to store gridpoints:
 	std::vector<grid_point> grid;
 	// Species that are present:
 	std::vector<species> species_present;
+
+	// The following vectors store the species properties:
+	Eigen::VectorXd molecular_mass, diameters, collision_energies, thermal_diffusivities;
+
+	// Generates the grid:
+	void generateGrid();
+	// Generate species profile: generates profile for mass 
+	// and mole fraction and their gradients in addition to body forces 
+	void generateSpeciesProfile();
+	// Generate temperature and pressure profile
+	void generateTempPressureProfile();
 
 public:
 
@@ -33,7 +45,11 @@ public:
 	domain(int N_grid)
 	{	
 		this->N_grid = N_grid;
+		// We assume standard interval of [-1, 1]
 		this->dx     = 2 / N_grid;
+
+		// Generates the grid:
+		this->generateGrid();
 	};
 
 	// Destructor
@@ -41,33 +57,24 @@ public:
 
 	// This function is used to get the information about the species in the domain:
 	void readSpecies(std::string file_name); 
-	// Generates the grid:
-	void generateGrid(int N_grid);
-	// Generate species profile: generates profile for mass 
-	// and mole fraction and their gradients in addition to body forces 
-	void generateSpeciesProfile();
-	// Generate temperature and pressure profile
-	void generateTempPressureProfile();
 
 	// Compute species velocity
-	void computeSpeciesVelocity(double tolerance);
+	void computeSpeciesVelocityFast(double tolerance);
 	// Compute exact species velocity
-	void computeExactSpeciesVelocity();
+	void computeSpeciesVelocityExact();
 	// Compute species velocity with iterative solver
-	void computeSpeciesVelocityIteratively(double tolerance);
+	void computeSpeciesVelocityIterative(double tolerance);
 
-	// Compute error
-	void computeError();
-	// Compute iterative error
-	void computeIterative_Error();
+	// Computes and returns the error
+	void getError();
 };
 
-void domain::generateGrid(int N_grid) 
+void domain::generateGrid() 
 {
 
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid_point new_grid_point(left+(j+0.5)*dx, N_species);
+		grid_point new_grid_point(-1 + (j+0.5) * dx);
 		grid.push_back(new_grid_point);
 	}
 
@@ -132,6 +139,30 @@ void domain::readSpecies(std::string file_name)
         species_present[j].mass     = species_present[j].mass/mass_max;
         species_present[j].diameter = species_present[j].diameter/dia_max;
     }
+
+	// Setting these values obtained to Eigen vectors:
+	this->molecular_mass        = Eigen::VectorXd::Zero(N_species);
+	this->diameters             = Eigen::VectorXd::Zero(N_species);
+	this->collision_energies    = Eigen::VectorXd::Zero(N_species);
+	this->thermal_diffusivities = Eigen::VectorXd::Zero(N_species);
+
+	#pragma omp parallel for
+    for(int j = 0; j < N_species; ++j) 
+    {
+		this->molecular_mass(j)        = species_present[j].mass;
+		this->diameters(j)             = species_present[j].diameter;
+		this->collision_energies(j)    = species_present[j].energy;
+		this->thermal_diffusivities(j) = species_present[j].thermal_diffusivity;
+	}
+
+	#pragma omp parallel for
+	for (int j = 0; j < N_grid; ++j) 
+	{
+		grid[j].FS.molecular_mass        = this->molecular_mass;
+		grid[j].FS.diameters             = this->diameters;
+		grid[j].FS.collision_energies    = this->collision_energies;
+		grid[j].FS.thermal_diffusivities = this->thermal_diffusivities;
+	}
 }
 
 // Generates a random species profile:
@@ -174,89 +205,102 @@ void domain::generateSpeciesProfile()
 		mass_fraction.col(j) = mass_fraction.col(j) / sum(j);
 	}
 
-	// Declaring matrix for body forces:
+	// Declaring matrix with random values for body forces:
 	Eigen::MatrixXd body_forces = Eigen::MatrixXd::Random(N_species, N_grid);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].mole_fraction          = mole_fraction.col(j);
-		grid[j].mole_fraction_gradient = mole_fraction_gradient.col(j);
-		grid[j].mass_fraction          = mass_fraction.col(j);
-		grid[j].body_forces            = body_forces.col(j);
+		grid[j].FS.mole_fraction          = mole_fraction.col(j);
+		grid[j].FS.mole_fraction_gradient = mole_fraction_gradient.col(j);
+		grid[j].FS.mass_fraction          = mass_fraction.col(j);
+		grid[j].FS.body_forces            = body_forces.col(j);
 	}
 }
 
 // Generates temperature and pressure profiles
 void domain::generateTemperaturePressureProfile() 
 {
-	double tempMean				=	2000;
-	double tempScale			=	500;
-	Eigen::VectorXd temp		=	Eigen::VectorXd::Ones(N_nodes)+Eigen::VectorXd::Random(N_nodes);
-	Eigen::VectorXd temperature	=	tempMean*Eigen::VectorXd::Ones(N_grid) + tempScale*(T*temp/temp.sum());
+	// Initializing density with a constant value of 1:
+	Eigen::VectorXd density = Eigen::VectorXd::Ones(N_grid);
 
-	Eigen::VectorXd pressureGradient	=	Eigen::VectorXd::Zero(N_grid);
-	pressureGradient.segment(1,N_grid-2)	=	pressure.segment(2,N_grid-2)-pressure.segment(0,N_grid-2);
-	pressureGradient	=	(0.5/dx)*pressureGradient;
+	// Initializing with random temperature variation:
+	double temp_mean            = 2000;
+	double temp_scale           = 500;
+	Eigen::VectorXd temperature	= temp_mean * Eigen::VectorXd::Ones(N_grid) + temp_scale * (Eigen::VectorXd::Random(N_grid));
 
-	double pressureMean			=	101325;
-	Eigen::VectorXd pressure	=	pressureMean*Eigen::VectorXd::Ones(N_grid);
+	// Taking Central Difference:
+	Eigen::VectorXd temperature_gradient     = Eigen::VectorXd::Zero(N_grid);
+	temperature_gradient.segment(1,N_grid-2) = temperature.segment(2,N_grid-2) - temperature.segment(0,N_grid-2);
+	temperature_gradient(0)                  = temperature(1) - temperature(N-1);
+	temperature_gradient(N-1)                = temperature(0) - temperature(N-2);
+	temperature_gradient                     = (0.5/dx) * temperature_gradient;
 
-	Eigen::VectorXd pressureGradient	=	Eigen::VectorXd::Zero(N_grid);
-	pressureGradient.segment(1,N_grid-2)	=	pressure.segment(2,N_grid-2)-pressure.segment(0,N_grid-2);
-	pressureGradient	=	(0.5/dx)*pressureGradient;
+	// Assuming constant pressure throughout:
+	double pressure_mean     = 101325;
+	Eigen::VectorXd pressure = pressure_mean * Eigen::VectorXd::Ones(N_grid);
+
+	// Due to constant pressure, pressure gradients would be zero:
+	Eigen::VectorXd pressure_gradient = Eigen::VectorXd::Zero(N_grid);
 
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].temperature		=	temperature(j);
-		grid[j].pressure			=	pressure(j);
-		grid[j].pressureGradient	=	pressureGradient(j);
-		grid[j].pressureGradient	=	pressureGradient(j);
+		grid[j].FS.density              = density(j);
+		grid[j].FS.temperature          = temperature(j);
+		grid[j].FS.pressure             = pressure(j);
+		grid[j].FS.temperature_gradient = temperature_gradient(j);
+		grid[j].FS.pressure_gradient    = pressure_gradient(j);
 	}
 }
 
 // Computes the species velocity at every grid point
-void domain::compute_Species_Velocity(double tolerance) {
-	static const double preFactor = 2.0/(3.0*AVAGADRO*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
+void domain::computeSpeciesVelocityFast(double tolerance) 
+{
+	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Species_Velocity(species_present, W, tolerance);
-		grid[j].speciesVelocity	=	preFactor*grid[j].speciesVelocity;
+	for (int j=0; j<N_grid; ++j) 
+	{
+		grid[j].computeSpeciesVelocityFast(tolerance);
+		grid[j].species_velocity = prefactor * grid[j].species_velocity;
 	}
 }
 
 // Computes the exact species velocity at every grid point
-void domain::compute_Exact_Species_Velocity() {
-	static const double preFactor	=	1;//2.0/(3.0*AVAGADRO*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
-	// std::cout << "Prefactor is: " << preFactor << "\n";
+void domain::computeSpeciesVelocityExact() 
+{
+	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Exact_Species_Velocity(species_present, W);
-		grid[j].exactSpeciesVelocity	=	preFactor*grid[j].exactSpeciesVelocity;
+	for (int j=0; j<N_grid; ++j) 
+	{
+		grid[j].computeSpeciesVelocityExact();
+		grid[j].exact_species_velocity = prefactor * grid[j].exact_species_velocity;
 	}
 }
 
 // Solve the system iteratively using CG
-void domain::compute_Species_Velocity_Iteratively(double tolerance, double& iterativeerror) {
-	static const double preFactor	=	1;//2.0/(3.0*AVAGADRO*diaMax*diaMax*sqrt(massMax))*(R/PI)*sqrt(R/PI);
-	// std::cout << "Prefactor is: " << preFactor << "\n";
-	#pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) {
-		grid[j].compute_Species_Velocity_Iteratively(species_present, W, tolerance);
-		grid[j].iterativespeciesVelocity	=	preFactor*grid[j].iterativespeciesVelocity;
-	}
-	std::cout << "Number of iterations for the iterative solver is: " << grid[N_grid/2].nIterations << "\n";
-	iterativeerror	=	grid[N_grid/2].iterativeerror;
-}
-
-// Computes the error
-void domain::computeError() 
+void domain::computeSpeciesVelocityIterative(double tolerance) 
 {
+	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].error	=	(grid[j].exactSpeciesVelocity-grid[j].speciesVelocity).norm()/(grid[j].exactSpeciesVelocity.norm());
+		grid[j].computeSpeciesVelocityIterative(tolerance);
+		grid[j].iterative_species_velocity = prefactor * grid[j].iterative_species_velocity;
 	}
+}
+
+// Computes and returns the error:
+double domain::getError() 
+{
+	double error;
+	#pragma omp parallel for
+	for (int j=0; j<N_grid; ++j) 
+	{
+		grid[j].error = (grid[j].exact_species_velocity-grid[j].species_velocity).norm() / (grid[j].exact_species_velocity.norm());
+		error        += grid[j].error;
+	}
+
+	return error / N_grid;
 }
 
 #endif /*__domain_hpp__*/

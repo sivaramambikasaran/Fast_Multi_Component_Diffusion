@@ -82,9 +82,6 @@ int main()
     Eigen::MatrixXd V    = FS.getInverseDiffusionCoefficientMatrix();
     Eigen::VectorXd v_sp = FS.computeSpeciesVelocities(1e-14);
 
-    Eigen::MatrixXd L = FS.L;
-    Eigen::MatrixXd R = FS.R;
-
     Eigen::VectorXd X = FS.mole_fraction;
     Eigen::VectorXd W = FS.molecular_mass;
     Eigen::VectorXd D = FS.thermal_diffusivities;

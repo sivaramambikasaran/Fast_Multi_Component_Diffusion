@@ -3,8 +3,7 @@
 
 #include <vector>
 #include "grid_point.hpp"
-#include <Eigen/Dense>
-#include <Eigen/IterativeLinearSolvers>
+#include "species.hpp"
 
 const double R        = 8.3144598;
 const double AVAGADRO = 6.022140857e23;
@@ -31,14 +30,6 @@ class domain
 	// The following vectors store the species properties:
 	Eigen::VectorXd molecular_mass, diameters, collision_energies, thermal_diffusivities;
 
-	// Generates the grid:
-	void generateGrid();
-	// Generate species profile: generates profile for mass 
-	// and mole fraction and their gradients in addition to body forces 
-	void generateSpeciesProfile();
-	// Generate temperature and pressure profile
-	void generateTempPressureProfile();
-
 public:
 
 	// Constructor
@@ -46,10 +37,13 @@ public:
 	{	
 		this->N_grid = N_grid;
 		// We assume standard interval of [-1, 1]
-		this->dx     = 2 / N_grid;
+		this->dx     = (double) 2 / N_grid;
 
-		// Generates the grid:
-		this->generateGrid();
+		for (int j=0; j < N_grid; ++j) 
+		{
+			grid_point new_grid_point(-1 + (j+0.5) * dx);
+			grid.push_back(new_grid_point);
+		}
 	};
 
 	// Destructor
@@ -57,6 +51,11 @@ public:
 
 	// This function is used to get the information about the species in the domain:
 	void readSpecies(std::string file_name); 
+	// Generate species profile: generates profile for mass 
+	// and mole fraction and their gradients in addition to body forces 
+	void generateSpeciesProfile();
+	// Generate temperature and pressure profile
+	void generateTemperaturePressureProfile();
 
 	// Compute species velocity
 	void computeSpeciesVelocityFast(double tolerance);
@@ -66,23 +65,8 @@ public:
 	void computeSpeciesVelocityIterative(double tolerance);
 
 	// Computes and returns the error
-	void getError();
+	double getError();
 };
-
-void domain::generateGrid() 
-{
-
-	for (int j=0; j<N_grid; ++j) 
-	{
-		grid_point new_grid_point(-1 + (j+0.5) * dx);
-		grid.push_back(new_grid_point);
-	}
-
-	// Getting the mole, mass fraction and gradient profiles:
-	generateSpeciesProfile();
-	// Getting the temperature, pressure profiles and their gradients:
-	generateTemperaturePressureProfile();
-}
 
 // We will be using this method to read the data from our data files:
 void domain::readSpecies(std::string file_name) 
@@ -109,7 +93,7 @@ void domain::readSpecies(std::string file_name)
         // However, they do not contain information about the
         // thermal diffusivities body forces. For the sake of
         // this example, we assign them using random values:
-        new_species.thermal_diffusivity = double(rand()) / RAND_MAX;
+        new_species.thermal_diffusivity = 0;//double(rand()) / RAND_MAX;
         species_present.push_back(new_species);
     }
     
@@ -158,10 +142,12 @@ void domain::readSpecies(std::string file_name)
 	#pragma omp parallel for
 	for (int j = 0; j < N_grid; ++j) 
 	{
-		grid[j].FS.molecular_mass        = this->molecular_mass;
-		grid[j].FS.diameters             = this->diameters;
-		grid[j].FS.collision_energies    = this->collision_energies;
-		grid[j].FS.thermal_diffusivities = this->thermal_diffusivities;
+		grid[j].FS = new fast_solver(N_species);
+
+		grid[j].FS->molecular_mass        = this->molecular_mass;
+		grid[j].FS->diameters             = this->diameters;
+		grid[j].FS->collision_energies    = this->collision_energies;
+		grid[j].FS->thermal_diffusivities = this->thermal_diffusivities;
 	}
 }
 
@@ -210,10 +196,10 @@ void domain::generateSpeciesProfile()
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].FS.mole_fraction          = mole_fraction.col(j);
-		grid[j].FS.mole_fraction_gradient = mole_fraction_gradient.col(j);
-		grid[j].FS.mass_fraction          = mass_fraction.col(j);
-		grid[j].FS.body_forces            = body_forces.col(j);
+		grid[j].FS->mole_fraction          = mole_fraction.col(j);
+		grid[j].FS->mole_fraction_gradient = mole_fraction_gradient.col(j);
+		grid[j].FS->mass_fraction          = mass_fraction.col(j);
+		grid[j].FS->body_forces            = body_forces.col(j);
 	}
 }
 
@@ -231,8 +217,8 @@ void domain::generateTemperaturePressureProfile()
 	// Taking Central Difference:
 	Eigen::VectorXd temperature_gradient     = Eigen::VectorXd::Zero(N_grid);
 	temperature_gradient.segment(1,N_grid-2) = temperature.segment(2,N_grid-2) - temperature.segment(0,N_grid-2);
-	temperature_gradient(0)                  = temperature(1) - temperature(N-1);
-	temperature_gradient(N-1)                = temperature(0) - temperature(N-2);
+	temperature_gradient(0)                  = temperature(1) - temperature(N_grid-1);
+	temperature_gradient(N_grid-1)           = temperature(0) - temperature(N_grid-2);
 	temperature_gradient                     = (0.5/dx) * temperature_gradient;
 
 	// Assuming constant pressure throughout:
@@ -245,17 +231,18 @@ void domain::generateTemperaturePressureProfile()
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
-		grid[j].FS.density              = density(j);
-		grid[j].FS.temperature          = temperature(j);
-		grid[j].FS.pressure             = pressure(j);
-		grid[j].FS.temperature_gradient = temperature_gradient(j);
-		grid[j].FS.pressure_gradient    = pressure_gradient(j);
+		grid[j].FS->density              = density(j);
+		grid[j].FS->temperature          = temperature(j);
+		grid[j].FS->pressure             = pressure(j);
+		grid[j].FS->temperature_gradient = temperature_gradient(j);
+		grid[j].FS->pressure_gradient    = pressure_gradient(j);
 	}
 }
 
 // Computes the species velocity at every grid point
 void domain::computeSpeciesVelocityFast(double tolerance) 
 {
+	std::cout << "I'm called1" << std::endl;
 	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
@@ -268,6 +255,7 @@ void domain::computeSpeciesVelocityFast(double tolerance)
 // Computes the exact species velocity at every grid point
 void domain::computeSpeciesVelocityExact() 
 {
+	std::cout << "I'm called2" << std::endl;
 	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
@@ -293,7 +281,7 @@ void domain::computeSpeciesVelocityIterative(double tolerance)
 double domain::getError() 
 {
 	double error;
-	#pragma omp parallel for
+	// #pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
 	{
 		grid[j].error = (grid[j].exact_species_velocity-grid[j].species_velocity).norm() / (grid[j].exact_species_velocity.norm());

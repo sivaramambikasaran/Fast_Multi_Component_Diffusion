@@ -4,31 +4,23 @@
 #include <Eigen/Dense>
 #include "domain.hpp"
 
+int main()
+{   
+    int N_grid = 10;
+    domain D(N_grid);
 
+    // Reading the species from the data file:
+    D.readSpecies("data/table_224.txt");
+	// Getting the mole, mass fraction and gradient profiles:
+	D.generateSpeciesProfile();
+	// Getting the temperature, pressure profiles and their gradients:
+	D.generateTemperaturePressureProfile();
 
-// This object is used to store data and solve the diffusion velocities for all species at a single grid point:
-class grid_point
-{
-    // Number of species
-    int N_species;
+    // Get velocities using the fast method:
+    D.computeSpeciesVelocityFast(1e-12);
+    // Getting exact velocities using A / b:
+    D.computeSpeciesVelocityExact();
 
-public:
-
-    // Constructor
-    grid_point(std::vector<species> species)
-    {
-        this->x         = x;
-        this->N_species = N_species;
-    }
-
-    // Species Velocity, where species_velocity(i) denotes the velocity of species 'i' at the grid_point
-    Eigen::VectorXd species_velocity_fast, species_velocity_exact, species_velocity_iterative;
-
-    // Computes the species velocity
-    void computeSpeciesVelocity(double tolerance);
-    // Computes the species velocity iteratively
-    void computeSpeciesVelocityIterative(double tolerance);
-    // Computes the exact species velocity
-    void computeSpeciesVelocityExact();
-};
-
+    std::cout << "Error:" << D.getError() << std::endl;
+    return 0;
+}

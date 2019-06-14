@@ -1,17 +1,17 @@
 CC         =g++
-CFLAGS	   =-c -Wall -Ofast -fopenmp -ffast-math -ffinite-math-only
-LDFLAGS	   =-Ofast -fopenmp
-SOURCES	   =./example/basic_example.cpp
+CFLAGS	   =-c -Ofast -ffast-math -ffinite-math-only
+LDFLAGS	   =-Ofast
+SOURCES	   =./main.cpp
 OBJECTS	   =$(SOURCES:.cpp=.o)
-EXECUTABLE =./exec/example
+EXECUTABLE =./example
 
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) -I $(EIGEN_PATH) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CC) -I $(EIGEN_PATH) -I ./../../ $(LDFLAGS) $(OBJECTS) -o $@
 
 .cpp.o:
-	$(CC) -I $(EIGEN_PATH) $(CFLAGS) $< -o $@
+	$(CC) -I $(EIGEN_PATH) -I ./../../ $(CFLAGS) $< -o $@
 
 clean:
-	rm ./exec/example ./example/*.o
+	rm ./example ./*.o

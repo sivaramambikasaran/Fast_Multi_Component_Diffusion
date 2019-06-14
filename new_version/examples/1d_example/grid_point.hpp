@@ -3,12 +3,14 @@
 
 #include <vector>
 #include <set>
-#include "Eigen/Dense"
+#include "FMDV.hpp"
+#include "Eigen/IterativeLinearSolvers"
 
 class fast_solver : public FMDV
 {
 public:
     fast_solver(int N_species) : FMDV(N_species)
+    {}
 
     double getInverseDiffusionCoefficient(int i, int j)
     {
@@ -42,23 +44,14 @@ public:
 class grid_point
 {
     friend class domain;
-    // Solver object used to quickly solve for the diffusion velocities:
-    fast_solver FS;
-
-    // Density, Temperature and Pressure values at the grid:
-    double density, pressure, pressure_gradient, temperature, temperature_gradient;
-    // Species Profile:
-    Eigen::VectorXd mole_fraction, mass_fraction, mole_fraction_gradient, body_forces;
-    // Species Properties:
-    Eigen::VectorXd molecular_mass, diameters, collision_energy, thermal_diffusivities; 
 
     // X-location of the grid_point
     double x;
     // Number of species
     int N_species;
 
-    // Inverse Diffusion Coefficient matrix
-    Eigen::MatrixXd V;
+    // Solver object used to quickly solve for the diffusion velocities:
+    fast_solver* FS;
 
 public:
 
@@ -70,9 +63,6 @@ public:
     // Error in solution
     double error;
 
-    // Number of iterations for the iterative solver
-    int N_iterations;
-
     // Computes the species velocity
     void computeSpeciesVelocityFast(double tolerance);
     // Computes the exact species velocity
@@ -81,42 +71,76 @@ public:
     void computeSpeciesVelocityIterative(double tolerance);
 };
 
-grid_point::grid_point(double x, int N_species) 
+grid_point::grid_point(double x) 
 {
-    this->x         = x;
-    this->N_species = N_species;
-    this->FS        = fast_solver(N_species);
+    this->x  = x;
 }
 
 void grid_point::computeSpeciesVelocityFast(double tolerance)
 {
-    Eigen::VectorXd species_velocity = FS.computeSpeciesVelocities(tolerance);
+    Eigen::VectorXd species_velocity = FS->computeSpeciesVelocities(tolerance);
 } 
-
 
 void grid_point::computeSpeciesVelocityExact() 
 {
-    obtain_Inverse_Diffusion_Coefficients(my_species);
-    Eigen::MatrixXd M       =   mole_fraction.asDiagonal()*V + Eigen::VectorXd::Random(N_species)*W.transpose() - Eigen::MatrixXd((V*mole_fraction).asDiagonal());
-    exact_species_velocity    =   M.fullPivLu().solve(rhs);
+    Eigen::MatrixXd V = FS->getInverseDiffusionCoefficientMatrix();
+    Eigen::VectorXd X = FS->mole_fraction;
+    Eigen::VectorXd W = FS->molecular_mass;
+    Eigen::VectorXd D = FS->thermal_diffusivities;
+    Eigen::VectorXd Y = FS->mass_fraction;
+    Eigen::VectorXd S = FS->getRandomVector();
+
+    // (diag(VX) - diag(X)V - S * Wt)z = (b - alpha * s)
+    Eigen::MatrixXd M       = Eigen::MatrixXd((V * X).asDiagonal()) - X.asDiagonal() * V - S * W.transpose();
+    Eigen::VectorXd z_exact = M.fullPivLu().solve(FS->getRHS());
+
+    double prefactor = FS->temperature_gradient / (FS->density * FS->temperature);
+    for(int i = 0; i < N_species; i++)
+    {
+        if(X(i) == 0)
+        {
+            exact_species_velocity(i) = 0;
+        }
+
+        else
+        {
+            exact_species_velocity(i) = z_exact(i) / X(i) - prefactor * D(i) / Y(i);
+        }
+    }
+
+    std::cout << (exact_species_velocity.array() - species_velocity.array()).cwiseAbs().maxCoeff() << std::endl;
 }
 
 void grid_point::computeSpeciesVelocityIterative(double tolerance) 
 {
-    // obtain_Inverse_Diffusion_Coefficients(my_species);
-    Eigen::VectorXd temp    =   V*mole_fraction;
-    Eigen::MatrixXd M       =   mole_fraction.asDiagonal()*V + Eigen::VectorXd::Random(N_species)*V.transpose();
-    for (int j=0; j<N_species; ++j) {
-        M(j,j)-=temp(j);
-    }
+    Eigen::MatrixXd V = FS->getInverseDiffusionCoefficientMatrix();
+    Eigen::VectorXd X = FS->mole_fraction;
+    Eigen::VectorXd W = FS->molecular_mass;
+    Eigen::VectorXd D = FS->thermal_diffusivities;
+    Eigen::VectorXd Y = FS->mass_fraction;
+    Eigen::VectorXd S = FS->getRandomVector();
 
+    // (diag(VX) - diag(X)V - S * Wt)z = (b - alpha * s)
+    Eigen::MatrixXd M = Eigen::MatrixXd((V * X).asDiagonal()) - X.asDiagonal() * V - S * W.transpose();
     // solve Ax = b using CG with matrix-free version:
-    Eigen::BiCGSTAB<Eigen::MatrixXd > cg;
-    cg.setTolerance(100*tolerance);
+    Eigen::BiCGSTAB<Eigen::MatrixXd> cg;
+    cg.setTolerance(100 * tolerance);
     cg.compute(M);
-    interative_species_velocity    =   cg.solve(rhs);
-    this->iterative_error    =   interative_species_velocity.cwiseProduct(W).sum(); //cg.error();
-    this->N_iterations       =   cg.iterations();
+    Eigen::VectorXd z = cg.solve(FS->getRHS());
+
+    double prefactor = FS->temperature_gradient / (FS->density * FS->temperature);
+    for(int i = 0; i < N_species; i++)
+    {
+        if(X(i) == 0)
+        {
+            iterative_species_velocity(i) = 0;
+        }
+
+        else
+        {
+            iterative_species_velocity(i) = z(i) / X(i) - prefactor * D(i) / Y(i);
+        }
+    }
 }
 
 #endif /*__grid_point_hpp__*/

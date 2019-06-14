@@ -47,9 +47,6 @@ class grid_point
 
     // X-location of the grid_point
     double x;
-    // Number of species
-    int N_species;
-
     // Solver object used to quickly solve for the diffusion velocities:
     fast_solver* FS;
 
@@ -78,7 +75,7 @@ grid_point::grid_point(double x)
 
 void grid_point::computeSpeciesVelocityFast(double tolerance)
 {
-    Eigen::VectorXd species_velocity = FS->computeSpeciesVelocities(tolerance);
+    species_velocity = FS->computeSpeciesVelocities(tolerance);
 } 
 
 void grid_point::computeSpeciesVelocityExact() 
@@ -95,7 +92,8 @@ void grid_point::computeSpeciesVelocityExact()
     Eigen::VectorXd z_exact = M.fullPivLu().solve(FS->getRHS());
 
     double prefactor = FS->temperature_gradient / (FS->density * FS->temperature);
-    for(int i = 0; i < N_species; i++)
+    exact_species_velocity = Eigen::VectorXd::Zero(X.size()); 
+    for(int i = 0; i < X.size(); i++)
     {
         if(X(i) == 0)
         {
@@ -107,8 +105,6 @@ void grid_point::computeSpeciesVelocityExact()
             exact_species_velocity(i) = z_exact(i) / X(i) - prefactor * D(i) / Y(i);
         }
     }
-
-    std::cout << (exact_species_velocity.array() - species_velocity.array()).cwiseAbs().maxCoeff() << std::endl;
 }
 
 void grid_point::computeSpeciesVelocityIterative(double tolerance) 
@@ -129,7 +125,8 @@ void grid_point::computeSpeciesVelocityIterative(double tolerance)
     Eigen::VectorXd z = cg.solve(FS->getRHS());
 
     double prefactor = FS->temperature_gradient / (FS->density * FS->temperature);
-    for(int i = 0; i < N_species; i++)
+    iterative_species_velocity = Eigen::VectorXd::Zero(X.size()); 
+    for(int i = 0; i < X.size(); i++)
     {
         if(X(i) == 0)
         {

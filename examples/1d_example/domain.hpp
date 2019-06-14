@@ -14,9 +14,6 @@ class domain
 {
 	// Number of grid points in the domain
 	int N_grid;
-	// Number of species in the domain
-	int N_species;
-
 	// Grid size
 	double dx;
 	// Maximum diameter and Maximum Mass
@@ -48,6 +45,9 @@ public:
 
 	// Destructor
 	~domain(){};
+
+	// Number of species in the domain
+	int N_species;
 
 	// This function is used to get the information about the species in the domain:
 	void readSpecies(std::string file_name); 
@@ -242,7 +242,6 @@ void domain::generateTemperaturePressureProfile()
 // Computes the species velocity at every grid point
 void domain::computeSpeciesVelocityFast(double tolerance) 
 {
-	std::cout << "I'm called1" << std::endl;
 	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
@@ -255,7 +254,6 @@ void domain::computeSpeciesVelocityFast(double tolerance)
 // Computes the exact species velocity at every grid point
 void domain::computeSpeciesVelocityExact() 
 {
-	std::cout << "I'm called2" << std::endl;
 	static const double prefactor = 2.0/(3.0*AVAGADRO * dia_max * dia_max * sqrt(mass_max)) * (R/PI) * sqrt(R/PI);
 	#pragma omp parallel for
 	for (int j=0; j<N_grid; ++j) 
@@ -281,8 +279,8 @@ void domain::computeSpeciesVelocityIterative(double tolerance)
 double domain::getError() 
 {
 	double error;
-	// #pragma omp parallel for
-	for (int j=0; j<N_grid; ++j) 
+	#pragma omp parallel for
+	for (int j=0; j<N_grid; ++j)
 	{
 		grid[j].error = (grid[j].exact_species_velocity-grid[j].species_velocity).norm() / (grid[j].exact_species_velocity.norm());
 		error        += grid[j].error;

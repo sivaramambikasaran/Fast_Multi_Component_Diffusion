@@ -1,6 +1,6 @@
 CC         =g++
-CFLAGS	   =-c -Ofast -ffast-math -ffinite-math-only
-LDFLAGS	   =-Ofast
+CFLAGS	   =-c -fopenmp -Ofast -ffast-math -ffinite-math-only
+LDFLAGS	   =-Ofast -fopenmp
 SOURCES	   =./main.cpp
 OBJECTS	   =$(SOURCES:.cpp=.o)
 EXECUTABLE =./example

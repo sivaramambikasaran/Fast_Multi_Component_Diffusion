@@ -10,7 +10,7 @@ FMDV makes use of linear algebra routines from the Eigen library. Ensure that th
 
 In order to use FMDV, include the ``FMDV.hpp`` file in your program. The solver requires various parameters that are required to solve the Stefan-Maxwell Equation:
 
-<img src="https://cdn.jsdelivr.net/gh/in git@github.com:shyams2/Fast_Multi_Component_Diffusion@master/.svgs//9ec82fdbf6d5d4a3edb9fda0755cb61c.svg?invert_in_darkmode" align=middle width=728.74658175pt height=92.4877173pt/>
+<img src="https://cdn.jsdelivr.net/gh/shyams2/Fast_Multi_Component_Diffusion@master/.svgs//9ec82fdbf6d5d4a3edb9fda0755cb61c.svg?invert_in_darkmode" align=middle width=728.74658175pt height=92.4877173pt/>
 
 As we can see above, this means that the inputs such as density, pressure, temperature and species properties of the various species are needed for the solver. The main solver object exposes these parameters needed as public attributes. They can be set by the constructor or changed directly through changing the attribute. We hope the examples serve to be explanatory on this front.
 

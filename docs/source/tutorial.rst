@@ -7,7 +7,7 @@ For this tutorial, we are going to be using the ``basic_example_usage/main.cpp``
 This code can be used to solve for multicomponent diffusion velocities quickly from the Stefan-Maxwell's equation for a single grid point
 
 .. math::
-    \nabla X_p & = \overbrace{\displaystyle \sum_{k=1}^{N} \dfrac{X_pX_k}{\mathcal{D}_{pk}} \left( v_k - v_p \right)}^{\text{Difference in velocities}} + \underbrace{\displaystyle \sum_{k=1}^{N} \dfrac{X_pX_k}{\mathcal{D}_{pk}} \left( \dfrac{D^{(T)}_k}{Y_k} - \dfrac{D^{(T)}_p}{Y_p} \right) \dfrac{\nabla T}{\rho T}}_{\text{Temperature gradient (Soret effect)}} + \overbrace{\left(Y_p-X_p\right) \dfrac{\nabla P}{P}}^{\text{Pressure gradient}} + \underbrace{\dfrac{\rho}{P}\displaystyle \sum_{k=1}^N Y_pY_k \left( f_p - f_k \right)}_{\text{Difference in body force}}
+    \nabla X_p = \overbrace{\displaystyle \sum_{k=1}^{N} \dfrac{X_pX_k}{\mathcal{D}_{pk}} \left( v_k - v_p \right)}^{\text{Difference in velocities}} + \underbrace{\displaystyle \sum_{k=1}^{N} \dfrac{X_pX_k}{\mathcal{D}_{pk}} \left( \dfrac{D^{(T)}_k}{Y_k} - \dfrac{D^{(T)}_p}{Y_p} \right) \dfrac{\nabla T}{\rho T}}_{\text{Temperature gradient (Soret effect)}} + \overbrace{\left(Y_p-X_p\right) \dfrac{\nabla P}{P}}^{\text{Pressure gradient}} + \underbrace{\dfrac{\rho}{P}\displaystyle \sum_{k=1}^N Y_pY_k \left( f_p - f_k \right)}_{\text{Difference in body force}}
 
 This would mean that several input parameters such as mole-fraction, mass-fraction, pressure etc. are needed as an input to the solver.
 

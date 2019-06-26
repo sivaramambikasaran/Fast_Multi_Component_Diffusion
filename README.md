@@ -3,6 +3,7 @@
 </p>
 
 # FMDV
+[![Documentation Status](https://readthedocs.org/projects/fmdv/badge/?version=latest)](https://fmdv.readthedocs.io/en/latest/?badge=latest)
 
 FMDV can be used to solve for multicomponent diffusion velocities in a fast manner. It does so by leveraging the low-rank nature of matrices that arise in the intermediate steps. The methods that are utilized in this library are detailed in [this](https://www.sciencedirect.com/science/article/pii/S1540748916300554) article
 
